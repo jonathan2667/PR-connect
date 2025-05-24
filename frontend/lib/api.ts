@@ -1,7 +1,7 @@
 // Environment-aware API configuration
 const getApiBaseUrl = () => {
   // Always prioritize environment variable first
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+  const backendUrl = "https://pr-connect-backend.onrender.com";
   if (backendUrl) {
     return backendUrl;
   }
