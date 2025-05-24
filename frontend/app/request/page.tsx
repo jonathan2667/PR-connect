@@ -15,6 +15,7 @@ export default function RequestPage() {
   const [isListening, setIsListening] = useState(false);
   const [speechText, setSpeechText] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [accumulatedSpeech, setAccumulatedSpeech] = useState('');
   const recognitionRef = useRef<any>(null);
 
   const [formData, setFormData] = useState<PressReleaseRequest>({
@@ -40,19 +41,31 @@ export default function RequestPage() {
         recognition.lang = 'en-US';
 
         recognition.onresult = (event: any) => {
-          let finalTranscript = '';
+          let newFinalTranscript = '';
           let interimTranscript = '';
 
+          // Process only NEW results starting from resultIndex
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-              finalTranscript += transcript;
+              newFinalTranscript += transcript;
             } else {
               interimTranscript += transcript;
             }
           }
 
-          setSpeechText(finalTranscript + interimTranscript);
+          // Add only NEW final results to accumulated speech
+          if (newFinalTranscript) {
+            setAccumulatedSpeech(prev => prev + newFinalTranscript);
+          }
+
+          // Update display: accumulated speech + current interim results
+          setSpeechText(prev => {
+            // Get current accumulated speech (without interim indicators)
+            const currentAccumulated = prev.includes('...') ? prev.split('...')[0] : prev;
+            const updatedAccumulated = newFinalTranscript ? currentAccumulated + newFinalTranscript : currentAccumulated;
+            return updatedAccumulated + (interimTranscript ? '...' + interimTranscript : '');
+          });
         };
 
         recognition.onerror = (event: any) => {
@@ -182,6 +195,7 @@ export default function RequestPage() {
       setIsListening(true);
       setError(null);
       setSpeechText('');
+      setAccumulatedSpeech('');
       recognitionRef.current.start();
     }
   };
@@ -190,19 +204,18 @@ export default function RequestPage() {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
       setIsListening(false);
-      // Don't automatically process - wait for user to click "Process Speech"
-    }
-  };
-
-  const processSpeech = () => {
-    if (speechText.trim()) {
-      const parsedData = parseSpeechToFormData(speechText);
-      // Set the full speech text as the press release body/content
-      setFormData(prev => ({
-        ...prev,
-        ...parsedData,
-        body: speechText.trim() // Full speech goes to content
-      }));
+      // Automatically process speech when stopping
+      setTimeout(() => {
+        const finalText = accumulatedSpeech || speechText.split('...')[0] || speechText;
+        if (finalText.trim()) {
+          const parsedData = parseSpeechToFormData(finalText);
+          setFormData(prev => ({
+            ...prev,
+            ...parsedData,
+            body: finalText.trim()
+          }));
+        }
+      }, 100); // Small delay to ensure final results are processed
     }
   };
 
@@ -415,15 +428,7 @@ export default function RequestPage() {
                   </div>
                 )}
 
-                <div className="flex gap-3 justify-center">
-                  <button
-                    type="button"
-                    onClick={processSpeech}
-                    disabled={!speechText.trim()}
-                    className="px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all duration-200"
-                  >
-                    📝 Process Speech
-                  </button>
+                <div className="flex justify-center">
                   <button
                     type="button"
                     onClick={resetForm}
