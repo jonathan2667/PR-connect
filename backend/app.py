@@ -126,14 +126,7 @@ def get_cors_origins():
     # Allow common Render patterns for PR-connect - be more comprehensive
     origins.extend([
         "https://pr-connect-frontend.onrender.com",
-        "https://prconnect-frontend.onrender.com", 
-        "https://pr-connect.onrender.com",
-        "https://prconnect.onrender.com",
-        # Add any other potential frontend URL patterns
-        "https://pr-connect-web.onrender.com",
-        "https://prconnect-web.onrender.com",
-        "https://pr-connect-ui.onrender.com",
-        "https://prconnect-ui.onrender.com"
+        "https://pr-connect-backend.onrender.com",
     ])
     
     return origins
