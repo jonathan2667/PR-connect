@@ -7,10 +7,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col py-8 px-4">
         <h2 className="text-2xl font-bold text-blue-700 mb-10">Business Dashboard</h2>
         <nav className="flex flex-col gap-2">
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-700 font-semibold" href="/dashboard" data-active={typeof window !== 'undefined' && window.location.pathname === '/dashboard'}>Dashboard</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-700 font-semibold" href="/request" data-active={typeof window !== 'undefined' && window.location.pathname === '/request'}>+ New Request</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100" href="#">Request History</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100" href="#">Settings</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-700 font-semibold" href="/dashboard">Dashboard</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/request">+ New Request</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/history">Request History</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/analytics">Analytics</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/settings">Settings</Link>
         </nav>
       </aside>
       {/* Main Content */}
