@@ -86,9 +86,9 @@ def generate_techcrunch_style(request: PressReleaseRequest) -> str:
 {request.company_name} today announced {request.body.lower()}
 
 **Key Highlights:**
-• Innovation-driven approach to market disruption
-• Technology-first solution addressing key industry challenges  
-• Positioned for rapid scaling and market adoption
+- Innovation-driven approach to market disruption
+- Technology-first solution addressing key industry challenges  
+- Positioned for rapid scaling and market adoption
 
 **About the {request.category}:**
 This development represents a significant milestone in {request.company_name}'s growth trajectory, demonstrating the company's commitment to pushing technological boundaries and delivering value to users.
@@ -192,10 +192,10 @@ This development represents an important milestone for {request.company_name} an
 
 **Key Details:**
 
-• **What:** {request.category} by {request.company_name}
-• **Impact:** Enhanced capabilities and market position
-• **Timeline:** Effective immediately
-• **Scope:** Company-wide initiative
+- **What:** {request.category} by {request.company_name}
+- **Impact:** Enhanced capabilities and market position
+- **Timeline:** Effective immediately
+- **Scope:** Company-wide initiative
 
 **Company Background:**
 
