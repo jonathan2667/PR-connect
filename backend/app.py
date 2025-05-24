@@ -4,6 +4,7 @@ Professional platform for AI-powered press release creation and management
 """
 
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 from uagents.communication import send_sync_message
 from uagents import Model
 from typing import List, Optional
@@ -77,7 +78,11 @@ PRESS_RELEASE_CATEGORIES = [
 
 app = Flask(__name__, 
     template_folder='../frontend/templates',
-    static_folder='../frontend/static')
+    static_folder='../frontend/static'
+)
+
+# Enable CORS for Next.js frontend
+CORS(app, origins=["http://localhost:3000", "http://localhost:3001"])
 
 def run_async(coro):
     """Helper to run async functions in Flask routes"""
