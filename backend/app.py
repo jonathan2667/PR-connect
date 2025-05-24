@@ -85,10 +85,7 @@ PRESS_RELEASE_CATEGORIES = [
     "Other"
 ]
 
-app = Flask(__name__, 
-    template_folder='../frontend/templates',
-    static_folder='../frontend/static'
-)
+app = Flask(__name__)
 
 # Database configuration
 # You'll need to set your DATABASE_URL environment variable
@@ -163,10 +160,22 @@ async def generate_press_releases(pr_request: PressReleaseRequest):
 
 @app.route('/')
 def home():
-    """Main press release generation interface"""
-    return render_template('press_release.html', 
-                         outlets=AVAILABLE_OUTLETS,
-                         categories=PRESS_RELEASE_CATEGORIES)
+    """API service information"""
+    return jsonify({
+        "service": "PR-Connect Backend API",
+        "status": "healthy",
+        "version": "1.0.0",
+        "description": "AI-powered press release generation service",
+        "endpoints": {
+            "health": "/health",
+            "generate": "/generate",
+            "outlets": "/api/outlets",
+            "categories": "/api/categories",
+            "requests": "/api/requests"
+        },
+        "frontend_url": os.environ.get('FRONTEND_URL', 'http://localhost:6969'),
+        "docs": "Visit the frontend URL for the web interface"
+    })
 
 @app.route('/generate', methods=['POST'])
 def generate_press_release():
