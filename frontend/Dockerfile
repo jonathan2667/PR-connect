@@ -20,8 +20,6 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED 1
 
-RUN npm install
-
 # Build the application
 RUN npm run build
 
