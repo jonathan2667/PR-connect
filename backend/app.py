@@ -46,7 +46,7 @@ class PressReleaseResponse(Model):
     status: str
 
 # Configuration - Update with your agent address
-AGENT_ADDRESS = "agent1qf376ss48kl8cpsc8pwtmtauscplngqrf0ku437ma5jwcvqw20r2jf38pzp"
+AGENT_ADDRESS = os.environ.get('AGENT_ADRESS')
 
 # Available outlets and categories (fallback for when DB is not available)
 AVAILABLE_OUTLETS = {
