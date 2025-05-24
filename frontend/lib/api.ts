@@ -1,51 +1,34 @@
 // Environment-aware API configuration
 const getApiBaseUrl = () => {
-  // Always prioritize environment variable first
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (backendUrl) {
-    return backendUrl;
+  // Destructure environment variable with fallback
+  const { NEXT_PUBLIC_API_URL } = process.env;
+  
+  // Direct check with console logging for debugging
+  if (NEXT_PUBLIC_API_URL) {
+    console.log('✅ Found NEXT_PUBLIC_API_URL:', NEXT_PUBLIC_API_URL);
+    return NEXT_PUBLIC_API_URL;
   }
+  
+  console.log('❌ NEXT_PUBLIC_API_URL not found, using fallback logic');
 
-  // In production, use the environment variable or construct from window.location
+  // Fallback logic
   if (typeof window !== 'undefined') {
-    // Browser environment
-    const { hostname, protocol } = window.location;
+    const { hostname } = window.location;
     
+    // Local development
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      // Local development
+      console.log('🏠 Using localhost for development');
       return 'http://localhost:5001';
-    } else {
-      // Fallback: construct backend URL from frontend URL for Render
-      if (hostname.includes('onrender.com')) {
-        // Render deployment - construct proper backend URL
-        if (hostname === 'pr-connect-frontend.onrender.com') {
-          return 'https://pr-connect-backend.onrender.com';
-        } else if (hostname === 'prconnect-frontend.onrender.com') {
-          return 'https://prconnect-backend.onrender.com';
-        } else {
-          // Generic pattern: replace -frontend with -backend, or add -backend
-          let backendHost = hostname;
-          if (hostname.includes('-frontend')) {
-            backendHost = hostname.replace('-frontend', '-backend');
-          } else if (hostname.includes('-web')) {
-            backendHost = hostname.replace('-web', '-backend');
-          } else if (hostname.includes('-ui')) {
-            backendHost = hostname.replace('-ui', '-backend');
-          } else {
-            // Add -backend before .onrender.com
-            backendHost = hostname.replace('.onrender.com', '-backend.onrender.com');
-          }
-          return `${protocol}//${backendHost}`;
-        }
-      }
-      
-      // Default fallback
-      return `${protocol}//${hostname}:5001`;
     }
-  } else {
-    // Server-side rendering fallback
-    return 'http://localhost:5001';
+    
+    // Production fallback
+    console.log('🌐 Using production fallback');
+    return 'https://pr-connect-backend.onrender.com';
   }
+  
+  // Server-side fallback
+  console.log('🖥️ Using server-side fallback');
+  return 'http://localhost:5001';
 };
 
 const API_BASE_URL = getApiBaseUrl();
