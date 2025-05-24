@@ -115,26 +115,78 @@ def get_cors_origins():
             origins.append(frontend_url.replace('http://', 'https://'))
     
     # Add common Render patterns (in case FRONTEND_URL is not set)
-    render_app_name = os.environ.get('RENDER_SERVICE_NAME')
-    if render_app_name:
+    render_service_name = os.environ.get('RENDER_SERVICE_NAME')
+    if render_service_name:
         origins.extend([
-            f"https://{render_app_name}.onrender.com",
-            f"https://{render_app_name}-frontend.onrender.com"
+            f"https://{render_service_name}.onrender.com",
+            f"https://{render_service_name}-frontend.onrender.com",
+            f"https://{render_service_name}-web.onrender.com"
         ])
     
-    # Allow common Render patterns for PR-connect
+    # Allow common Render patterns for PR-connect - be more comprehensive
     origins.extend([
         "https://pr-connect-frontend.onrender.com",
         "https://prconnect-frontend.onrender.com", 
-        "https://pr-connect.onrender.com"
+        "https://pr-connect.onrender.com",
+        "https://prconnect.onrender.com",
+        # Add any other potential frontend URL patterns
+        "https://pr-connect-web.onrender.com",
+        "https://prconnect-web.onrender.com",
+        "https://pr-connect-ui.onrender.com",
+        "https://prconnect-ui.onrender.com"
     ])
     
     return origins
 
-# Enable CORS for multiple environments
+# Enable CORS for multiple environments with more permissive settings
 allowed_origins = get_cors_origins()
 print(f"🌐 CORS enabled for origins: {allowed_origins}")
-CORS(app, origins=allowed_origins, supports_credentials=True)
+
+# Use more permissive CORS settings for production debugging
+cors_config = {
+    'origins': allowed_origins,
+    'supports_credentials': True,
+    'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    'allow_headers': ['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials']
+}
+
+CORS(app, **cors_config)
+
+@app.before_request
+def log_request_info():
+    """Log request information for debugging CORS issues"""
+    origin = request.headers.get('Origin')
+    if origin:
+        print(f"🌍 Incoming request from origin: {origin}")
+        print(f"📍 Request path: {request.path}")
+        print(f"🔧 Method: {request.method}")
+        if origin not in allowed_origins:
+            print(f"⚠️ Origin {origin} not in allowed origins: {allowed_origins}")
+
+@app.after_request
+def after_request(response):
+    """Add CORS headers manually as backup"""
+    origin = request.headers.get('Origin')
+    if origin and origin in allowed_origins:
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
+
+@app.route('/<path:path>', methods=['OPTIONS'])
+@app.route('/', methods=['OPTIONS'])
+def handle_options(path=None):
+    """Handle preflight OPTIONS requests for all routes"""
+    origin = request.headers.get('Origin')
+    if origin in allowed_origins:
+        response = jsonify({'status': 'ok'})
+        response.headers.add('Access-Control-Allow-Origin', origin)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+    return jsonify({'error': 'Origin not allowed'}), 403
 
 def run_async(coro):
     """Helper to run async functions in Flask routes"""
@@ -461,6 +513,18 @@ def health_check():
         "agent_address": AGENT_ADDRESS,
         "available_outlets": len(AVAILABLE_OUTLETS),
         "available_categories": len(PRESS_RELEASE_CATEGORIES),
+        "timestamp": datetime.now().isoformat()
+    })
+
+@app.route('/cors-test')
+def cors_test():
+    """Simple CORS test endpoint"""
+    origin = request.headers.get('Origin', 'unknown')
+    return jsonify({
+        "message": "CORS test successful",
+        "origin": origin,
+        "allowed_origins": allowed_origins,
+        "cors_working": True,
         "timestamp": datetime.now().isoformat()
     })
 

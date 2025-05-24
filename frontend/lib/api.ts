@@ -1,5 +1,11 @@
 // Environment-aware API configuration
 const getApiBaseUrl = () => {
+  // Always prioritize environment variable first
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (backendUrl) {
+    return backendUrl;
+  }
+
   // In production, use the environment variable or construct from window.location
   if (typeof window !== 'undefined') {
     // Browser environment
@@ -9,17 +15,28 @@ const getApiBaseUrl = () => {
       // Local development
       return 'http://localhost:5001';
     } else {
-      // Production - assume backend is on same domain or use environment variable
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL;
-      if (backendUrl) {
-        return backendUrl;
-      }
-      
-      // Fallback: construct backend URL from frontend URL
+      // Fallback: construct backend URL from frontend URL for Render
       if (hostname.includes('onrender.com')) {
-        // Render deployment - assume backend service name pattern
-        const backendHost = hostname.replace('-frontend', '').replace('prconnect', 'pr-connect-backend');
-        return `${protocol}//${backendHost}`;
+        // Render deployment - construct proper backend URL
+        if (hostname === 'pr-connect-frontend.onrender.com') {
+          return 'https://pr-connect-backend.onrender.com';
+        } else if (hostname === 'prconnect-frontend.onrender.com') {
+          return 'https://prconnect-backend.onrender.com';
+        } else {
+          // Generic pattern: replace -frontend with -backend, or add -backend
+          let backendHost = hostname;
+          if (hostname.includes('-frontend')) {
+            backendHost = hostname.replace('-frontend', '-backend');
+          } else if (hostname.includes('-web')) {
+            backendHost = hostname.replace('-web', '-backend');
+          } else if (hostname.includes('-ui')) {
+            backendHost = hostname.replace('-ui', '-backend');
+          } else {
+            // Add -backend before .onrender.com
+            backendHost = hostname.replace('.onrender.com', '-backend.onrender.com');
+          }
+          return `${protocol}//${backendHost}`;
+        }
       }
       
       // Default fallback
@@ -27,7 +44,7 @@ const getApiBaseUrl = () => {
     }
   } else {
     // Server-side rendering fallback
-    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+    return 'http://localhost:5001';
   }
 };
 
