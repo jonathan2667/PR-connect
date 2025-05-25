@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { authApi } from "../../lib/api";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [userCompany, setUserCompany] = useState('Loading...');
 
   useEffect(() => {
@@ -33,18 +34,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
+  // Helper function to determine if a link is active
+  const isActive = (href: string) => {
+    if (href === '/dashboard') {
+      return pathname === '/dashboard';
+    }
+    return pathname.startsWith(href);
+  };
+
+  // Helper function to get link classes
+  const getLinkClasses = (href: string) => {
+    const baseClasses = "flex items-center gap-2 px-3 py-2 rounded-lg transition-colors";
+    if (isActive(href)) {
+      return `${baseClasses} bg-blue-100 text-blue-700 font-semibold`;
+    }
+    return `${baseClasses} text-gray-700 hover:text-blue-700 hover:bg-blue-50`;
+  };
+
   return (
     <div className="min-h-screen flex bg-gray-50">
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r border-gray-200 flex flex-col py-8 px-4">
         <h2 className="text-2xl font-bold text-blue-700 mb-10">Business Dashboard</h2>
         <nav className="flex flex-col gap-2">
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-700 font-semibold" href="/dashboard">Dashboard</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/dashboard/request">+ New Request</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/dashboard/history">Request History</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/transcripts">📝 Transcripts</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/analytics">Analytics</Link>
-          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/dashboard/settings">Settings</Link>
+          <Link className={getLinkClasses('/dashboard')} href="/dashboard">🏠 Dashboard</Link>
+          <Link className={getLinkClasses('/request')} href="/request">➕ New Request</Link>
+          <Link className={getLinkClasses('/history')} href="/history">📋 Request History</Link>
+          <Link className={getLinkClasses('/transcripts')} href="/transcripts">📝 Transcripts</Link>
+          <Link className={getLinkClasses('/settings')} href="/settings">⚙️ Settings</Link>
         </nav>
       </aside>
       {/* Main Content */}
@@ -69,7 +86,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </header>
         {/* Main Area */}
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 p-8">
           {children}
         </main>
       </div>
