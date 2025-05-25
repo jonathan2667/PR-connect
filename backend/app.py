@@ -14,6 +14,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
+import re
 
 # JWT and security imports
 import jwt
@@ -25,6 +26,15 @@ load_dotenv()
 
 # Import database models
 from models import db, NewsOutlet, Request, Response, Transcript, User
+
+# Import improved agent functions
+try:
+    from agent import analyze_content, generate_techcrunch_style, generate_cnn_style, generate_adevarul_style, generate_theverge_style, generate_forbes_style, generate_general_style
+    IMPROVED_AGENT_AVAILABLE = True
+    print("✅ Imported improved agent functions successfully")
+except ImportError as e:
+    print(f"⚠️ Could not import improved agent functions: {e}")
+    IMPROVED_AGENT_AVAILABLE = False
 
 # Global debug log storage (in-memory for now)
 DEBUG_LOGS = []
@@ -99,6 +109,16 @@ AVAILABLE_OUTLETS = {
         "description": "Broad appeal, standard format",
         "audience": "General public, all media outlets",
         "icon": "📰"
+    },
+    "Adevarul": {
+        "description": "Romanian news perspective, factual reporting",
+        "audience": "Romanian readers, local news consumers",
+        "icon": "🇷🇴"
+    },
+    "CNN": {
+        "description": "Breaking news format, broad appeal",
+        "audience": "Global news consumers, current events followers",
+        "icon": "📺"
     }
 }
 
@@ -603,8 +623,32 @@ def generate_press_release():
         })
 
 def generate_content_for_outlet(pr_request: PressReleaseRequest, outlet: str) -> str:
-    """Generate content based on outlet style"""
+    """Generate content based on outlet style using improved agent logic"""
     
+    # Use improved agent logic if available
+    if IMPROVED_AGENT_AVAILABLE:
+        try:
+            # Analyze the content to understand what actually happened
+            content_analysis = analyze_content(pr_request.body or "")
+            
+            # Generate outlet-specific content using improved functions
+            if outlet == "TechCrunch" or outlet == "TTechCrunch":
+                return generate_techcrunch_style(pr_request, content_analysis)
+            elif outlet == "The Verge":
+                return generate_theverge_style(pr_request, content_analysis)
+            elif outlet == "Forbes":
+                return generate_forbes_style(pr_request, content_analysis)
+            elif outlet == "Adevarul":
+                return generate_adevarul_style(pr_request, content_analysis)
+            elif outlet == "CNN":
+                return generate_cnn_style(pr_request, content_analysis)
+            else:
+                return generate_general_style(pr_request, content_analysis)
+        except Exception as e:
+            print(f"⚠️ Error using improved agent logic: {e}")
+            # Fall back to original logic below
+    
+    # Fallback to original logic if improved agent functions are not available
     # Safety checks for None values
     title = pr_request.title or f"Press Release from {pr_request.company_name or 'Company'}"
     company_name = pr_request.company_name or "Company"
@@ -1460,7 +1504,7 @@ def create_admin():
         
         print("👑 Admin user created successfully")
         
-    return jsonify({
+        return jsonify({
             "success": True,
             "message": "Admin user created successfully",
             "data": {
