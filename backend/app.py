@@ -284,12 +284,16 @@ def home():
     })
 
 @app.route('/generate', methods=['POST'])
+@require_auth
 def generate_press_release():
     """Handle press release generation request and store in database"""
     try:
+        # Get current user
+        user_id = request.current_user['user_id']
+        
         # Extract form data
         data = request.get_json()
-        print(f"🔍 Received request data: {data}")
+        print(f"🔍 Received request data from user {user_id}: {data}")
         
         # Create press release request
         pr_request = PressReleaseRequest(
@@ -330,11 +334,12 @@ def generate_press_release():
                         db.session.add(outlet)
                         db.session.flush()  # Get the ID
                     
-                    # Create request record in database
+                    # Create request record in database with user association
                     db_request = Request(
                         title=pr_request.title or 'Untitled Press Release',
                         body=pr_request.body or 'No content provided',
                         news_outlet_id=outlet.id,
+                        user_id=user_id,  # Associate with current user
                         company_name=pr_request.company_name or 'Unknown Company',
                         category=pr_request.category or 'Company Milestone',
                         contact_info=pr_request.contact_info or '',
@@ -633,10 +638,15 @@ def get_categories():
     return jsonify(PRESS_RELEASE_CATEGORIES)
 
 @app.route('/api/requests', methods=['GET'])
+@require_auth
 def get_requests():
-    """Get all press release requests with their responses"""
+    """Get all press release requests with their responses for the current user"""
     try:
-        requests = Request.query.order_by(Request.created_at.desc()).all()
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Filter requests by current user
+        requests = Request.query.filter_by(user_id=user_id).order_by(Request.created_at.desc()).all()
         request_data = []
         for req in requests:
             req_dict = req.to_dict()
@@ -649,17 +659,28 @@ def get_requests():
             "count": len(request_data)
         })
     except Exception as e:
-        print(f"⚠️ Database error loading requests: {e}")
+        print(f"⚠️ Database error loading requests for user {user_id}: {e}")
         return jsonify({
             "success": False,
             "message": f"Error loading requests: {str(e)}"
         })
 
 @app.route('/api/requests/<int:request_id>', methods=['GET'])
+@require_auth
 def get_request(request_id):
-    """Get a specific request with its responses"""
+    """Get a specific request with its responses for the current user"""
     try:
-        req = Request.query.get_or_404(request_id)
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Find request and ensure it belongs to current user
+        req = Request.query.filter_by(id=request_id, user_id=user_id).first()
+        if not req:
+            return jsonify({
+                "success": False,
+                "message": "Request not found or access denied"
+            }), 404
+        
         req_dict = req.to_dict()
         req_dict['responses'] = [resp.to_dict() for resp in req.responses]
         
@@ -668,21 +689,26 @@ def get_request(request_id):
             "data": req_dict
         })
     except Exception as e:
-        print(f"⚠️ Database error loading request {request_id}: {e}")
+        print(f"⚠️ Database error loading request {request_id} for user {user_id}: {e}")
         return jsonify({
             "success": False,
             "message": f"Error loading request: {str(e)}"
         })
 
 @app.route('/api/requests/<int:request_id>', methods=['DELETE'])
+@require_auth
 def delete_request(request_id):
-    """Delete a specific request and all its responses"""
+    """Delete a specific request and all its responses for the current user"""
     try:
-        req = Request.query.get(request_id)
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Find request and ensure it belongs to current user
+        req = Request.query.filter_by(id=request_id, user_id=user_id).first()
         if not req:
             return jsonify({
                 "success": False,
-                "message": "Request not found"
+                "message": "Request not found or access denied"
             }), 404
         
         # Store info for response
@@ -693,7 +719,7 @@ def delete_request(request_id):
         db.session.delete(req)
         db.session.commit()
         
-        print(f"🗑️ Deleted request {request_id}: '{title}' by {company_name}")
+        print(f"🗑️ User {user_id} deleted request {request_id}: '{title}' by {company_name}")
         
         return jsonify({
             "success": True,
@@ -701,7 +727,7 @@ def delete_request(request_id):
         })
         
     except Exception as e:
-        print(f"⚠️ Database error deleting request {request_id}: {e}")
+        print(f"⚠️ Database error deleting request {request_id} for user {user_id}: {e}")
         db.session.rollback()
         return jsonify({
             "success": False,
@@ -969,9 +995,13 @@ def verify_auth():
         }), 401
 
 @app.route('/api/transcripts', methods=['POST'])
+@require_auth
 def save_transcript():
-    """Save a new speech transcript"""
+    """Save a new speech transcript for the current user"""
     try:
+        # Get current user
+        user_id = request.current_user['user_id']
+        
         data = request.get_json()
         text = data.get('text', '').strip()
         
@@ -981,12 +1011,15 @@ def save_transcript():
                 "message": "Transcript text is required"
             }), 400
         
-        # Create new transcript
-        transcript = Transcript(text=text)
+        # Create new transcript associated with current user
+        transcript = Transcript(
+            text=text,
+            user_id=user_id
+        )
         db.session.add(transcript)
         db.session.commit()
         
-        print(f"💾 Saved transcript {transcript.id}: {len(text)} characters")
+        print(f"💾 User {user_id} saved transcript {transcript.id}: {len(text)} characters")
         
         return jsonify({
             "success": True,
@@ -995,7 +1028,7 @@ def save_transcript():
         })
         
     except Exception as e:
-        print(f"⚠️ Database error saving transcript: {e}")
+        print(f"⚠️ Database error saving transcript for user {user_id}: {e}")
         db.session.rollback()
         return jsonify({
             "success": False,
@@ -1003,10 +1036,15 @@ def save_transcript():
         }), 500
 
 @app.route('/api/transcripts', methods=['GET'])
+@require_auth
 def get_transcripts():
-    """Get all saved transcripts"""
+    """Get all saved transcripts for the current user"""
     try:
-        transcripts = Transcript.query.order_by(Transcript.created_at.desc()).all()
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Filter transcripts by current user
+        transcripts = Transcript.query.filter_by(user_id=user_id).order_by(Transcript.created_at.desc()).all()
         transcript_data = [transcript.to_dict() for transcript in transcripts]
         
         return jsonify({
@@ -1016,21 +1054,26 @@ def get_transcripts():
         })
         
     except Exception as e:
-        print(f"⚠️ Database error loading transcripts: {e}")
+        print(f"⚠️ Database error loading transcripts for user {user_id}: {e}")
         return jsonify({
             "success": False,
             "message": f"Error loading transcripts: {str(e)}"
         })
 
 @app.route('/api/transcripts/<int:transcript_id>', methods=['GET'])
+@require_auth
 def get_transcript(transcript_id):
-    """Get a specific transcript"""
+    """Get a specific transcript for the current user"""
     try:
-        transcript = Transcript.query.get(transcript_id)
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Find transcript and ensure it belongs to current user
+        transcript = Transcript.query.filter_by(id=transcript_id, user_id=user_id).first()
         if not transcript:
             return jsonify({
                 "success": False,
-                "message": "Transcript not found"
+                "message": "Transcript not found or access denied"
             }), 404
         
         return jsonify({
@@ -1039,28 +1082,33 @@ def get_transcript(transcript_id):
         })
         
     except Exception as e:
-        print(f"⚠️ Database error loading transcript {transcript_id}: {e}")
+        print(f"⚠️ Database error loading transcript {transcript_id} for user {user_id}: {e}")
         return jsonify({
             "success": False,
             "message": f"Error loading transcript: {str(e)}"
         })
 
 @app.route('/api/transcripts/<int:transcript_id>', methods=['DELETE'])
+@require_auth
 def delete_transcript(transcript_id):
-    """Delete a specific transcript"""
+    """Delete a specific transcript for the current user"""
     try:
-        transcript = Transcript.query.get(transcript_id)
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Find transcript and ensure it belongs to current user
+        transcript = Transcript.query.filter_by(id=transcript_id, user_id=user_id).first()
         if not transcript:
             return jsonify({
                 "success": False,
-                "message": "Transcript not found"
+                "message": "Transcript not found or access denied"
             }), 404
         
         # Delete the transcript
         db.session.delete(transcript)
         db.session.commit()
         
-        print(f"🗑️ Deleted transcript {transcript_id}")
+        print(f"🗑️ User {user_id} deleted transcript {transcript_id}")
         
         return jsonify({
             "success": True,
@@ -1068,11 +1116,123 @@ def delete_transcript(transcript_id):
         })
         
     except Exception as e:
-        print(f"⚠️ Database error deleting transcript {transcript_id}: {e}")
+        print(f"⚠️ Database error deleting transcript {transcript_id} for user {user_id}: {e}")
         db.session.rollback()
         return jsonify({
             "success": False,
             "message": f"Error deleting transcript: {str(e)}"
+        }), 500
+
+@app.route('/api/migrate-user-relations', methods=['POST'])
+def migrate_user_relations_endpoint():
+    """Run migration to add user relationships to existing tables"""
+    try:
+        # Import the migration function
+        from migrate_user_relations import migrate_user_relations
+        
+        # Run the migration
+        results = migrate_user_relations()
+        
+        if results["success"]:
+            return jsonify({
+                "success": True,
+                "message": results["message"],
+                "data": {
+                    "changes_made": results["changes_made"]
+                }
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": results["message"]
+            }), 500
+            
+    except Exception as e:
+        print(f"💥 User relations migration error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Migration failed: {str(e)}"
+        }), 500
+
+@app.route('/api/dashboard/stats', methods=['GET'])
+@require_auth
+def get_dashboard_stats():
+    """Get dashboard statistics for the current user"""
+    try:
+        # Get current user
+        user_id = request.current_user['user_id']
+        
+        # Get user's requests
+        user_requests = Request.query.filter_by(user_id=user_id).all()
+        
+        # Calculate basic stats
+        total_requests = len(user_requests)
+        
+        # For now, we'll consider all requests as completed since we generate them immediately
+        # In a real system, you might have different status tracking
+        completed_requests = total_requests
+        active_requests = 0  # No active/pending system currently
+        
+        # Get unique outlets used by this user
+        unique_outlets = set()
+        for req in user_requests:
+            if req.news_outlet and req.news_outlet.name:
+                unique_outlets.add(req.news_outlet.name)
+        
+        # Get recent activity (last 5 requests)
+        recent_requests = Request.query.filter_by(user_id=user_id)\
+                                     .order_by(Request.created_at.desc())\
+                                     .limit(5).all()
+        
+        recent_activity = []
+        for req in recent_requests:
+            # Get outlets for this request (check responses)
+            outlets = []
+            if req.responses:
+                # In our system, we create one request per outlet, so get the outlet name
+                if req.news_outlet:
+                    outlets.append(req.news_outlet.name)
+            
+            # Calculate time ago
+            import datetime
+            time_diff = datetime.datetime.utcnow() - req.created_at
+            if time_diff.days > 0:
+                time_ago = f"{time_diff.days} day{'s' if time_diff.days > 1 else ''} ago"
+            elif time_diff.seconds > 3600:
+                hours = time_diff.seconds // 3600
+                time_ago = f"{hours} hour{'s' if hours > 1 else ''} ago"
+            elif time_diff.seconds > 60:
+                minutes = time_diff.seconds // 60
+                time_ago = f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+            else:
+                time_ago = "Just now"
+            
+            recent_activity.append({
+                'id': req.id,
+                'type': 'press_release',
+                'title': req.title,
+                'status': 'completed',  # All our requests are completed immediately
+                'outlets': outlets,
+                'date': time_ago,
+                'category': req.category
+            })
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "totalRequests": total_requests,
+                "activeRequests": active_requests,
+                "completedRequests": completed_requests,
+                "totalOutlets": len(unique_outlets),
+                "recentActivity": recent_activity
+            }
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Dashboard stats error for user {user_id}: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading dashboard stats: {str(e)}"
         }), 500
 
 if __name__ == '__main__':

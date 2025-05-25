@@ -36,6 +36,7 @@ class Request(db.Model):
     title = db.Column(db.String(100), nullable=False)
     body = db.Column(db.String(2000), nullable=False)
     news_outlet_id = db.Column(db.Integer, db.ForeignKey('news_outlets.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Made nullable for existing data
     
     # Additional fields for our application
     company_name = db.Column(db.String(100))
@@ -46,6 +47,8 @@ class Request(db.Model):
     
     # Relationship to responses
     responses = db.relationship('Response', backref='request', lazy=True, cascade='all, delete-orphan')
+    # Relationship to user
+    user = db.relationship('User', backref='requests', lazy=True)
     
     def __repr__(self):
         return f'<Request {self.title}>'
@@ -56,12 +59,14 @@ class Request(db.Model):
             'title': self.title,
             'body': self.body,
             'news_outlet_id': self.news_outlet_id,
+            'user_id': self.user_id,
             'company_name': self.company_name,
             'category': self.category,
             'contact_info': self.contact_info,
             'additional_notes': self.additional_notes,
             'created_at': self.created_at.isoformat() if self.created_at else None,
-            'news_outlet': self.news_outlet.to_dict() if self.news_outlet else None
+            'news_outlet': self.news_outlet.to_dict() if self.news_outlet else None,
+            'user': self.user.to_dict() if self.user else None
         }
 
 class Response(db.Model):
@@ -96,9 +101,13 @@ class Transcript(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     text = db.Column(db.Text, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)  # Made nullable for existing data
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     word_count = db.Column(db.Integer)
     preview = db.Column(db.String(200))
+    
+    # Relationship to user
+    user = db.relationship('User', backref='transcripts', lazy=True)
     
     def __repr__(self):
         return f'<Transcript {self.id}>'
@@ -107,9 +116,11 @@ class Transcript(db.Model):
         return {
             'id': self.id,
             'text': self.text,
+            'user_id': self.user_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'word_count': len(self.text.split()) if self.text else 0,
-            'preview': self.text[:100] + '...' if len(self.text) > 100 else self.text
+            'preview': self.text[:100] + '...' if len(self.text) > 100 else self.text,
+            'user': self.user.to_dict() if self.user else None
         }
 
 class User(db.Model):

@@ -33,6 +33,20 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
+// Helper function to get authentication headers
+const getAuthHeaders = (): HeadersInit => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+  
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  
+  return headers;
+};
+
 export interface PressReleaseRequest {
   title: string;
   body: string;
@@ -70,9 +84,7 @@ export const api = {
   async generatePressRelease(request: PressReleaseRequest): Promise<PressReleaseResponse> {
     const response = await fetch(`${API_BASE_URL}/generate`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify(request),
     });
 
@@ -113,7 +125,9 @@ export const api = {
 
   // Get request history
   async getRequests(): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/requests`);
+    const response = await fetch(`${API_BASE_URL}/api/requests`, {
+      headers: getAuthHeaders(),
+    });
     
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`);
@@ -125,7 +139,9 @@ export const api = {
 
   // Get specific request
   async getRequest(requestId: number): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}`);
+    const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, {
+      headers: getAuthHeaders(),
+    });
     
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`);
@@ -139,9 +155,7 @@ export const api = {
   async deleteRequest(requestId: number): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -182,9 +196,7 @@ export const api = {
   async saveTranscript(text: string): Promise<{ success: boolean; data?: any; message: string }> {
     const response = await fetch(`${API_BASE_URL}/api/transcripts`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ text }),
     });
 
@@ -197,7 +209,9 @@ export const api = {
 
   // Get all transcripts
   async getTranscripts(): Promise<any[]> {
-    const response = await fetch(`${API_BASE_URL}/api/transcripts`);
+    const response = await fetch(`${API_BASE_URL}/api/transcripts`, {
+      headers: getAuthHeaders(),
+    });
     
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`);
@@ -209,7 +223,9 @@ export const api = {
 
   // Get specific transcript
   async getTranscript(transcriptId: number): Promise<any> {
-    const response = await fetch(`${API_BASE_URL}/api/transcripts/${transcriptId}`);
+    const response = await fetch(`${API_BASE_URL}/api/transcripts/${transcriptId}`, {
+      headers: getAuthHeaders(),
+    });
     
     if (!response.ok) {
       throw new Error(`API Error: ${response.statusText}`);
@@ -219,13 +235,11 @@ export const api = {
     return result.success ? result.data : null;
   },
 
-  // Delete transcript
+  // Delete specific transcript
   async deleteTranscript(transcriptId: number): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_BASE_URL}/api/transcripts/${transcriptId}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: getAuthHeaders(),
     });
 
     if (!response.ok) {
@@ -233,6 +247,20 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  // Get dashboard statistics
+  async getDashboardStats(): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`, {
+      headers: getAuthHeaders(),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.success ? result.data : null;
   }
 };
 
