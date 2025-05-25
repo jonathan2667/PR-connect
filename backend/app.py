@@ -76,7 +76,7 @@ class PressReleaseResponse(Model):
     status: str
 
 # Configuration - Update with your agent address
-AGENT_ADDRESS = os.environ.get('AGENT_ADDRESS')
+AGENT_ADDRESS = os.environ.get('AGENT_ADDRESS', 'agent1qf376ss48kl8cpsc8pwtmtauscplngqrf0ku437ma5jwcvqw20r2jf38pzp')
 
 # Available outlets and categories (fallback for when DB is not available)
 AVAILABLE_OUTLETS = {
@@ -297,68 +297,26 @@ def run_async(coro):
 async def generate_press_releases(pr_request: PressReleaseRequest):
     """Send press release request to agent and get generated content"""
     try:
-        # Check if agent address is configured
-        if not AGENT_ADDRESS:
-            add_debug_log("WARNING", "AGENT_ADDRESS not configured, skipping agent call")
-            return True, "Agent not configured - generating content locally"
-        
         add_debug_log("INFO", f"Attempting to connect to agent at: {AGENT_ADDRESS}")
-        add_debug_log("INFO", "Sending message to AgentVerse...", {
-            "environment": os.environ.get('RENDER_SERVICE_NAME', 'local'),
-            "request_data": pr_request.dict()
-        })
         
-        # Enhanced error handling with more specific checks
-        try:
-            response = await send_sync_message(
-                destination=AGENT_ADDRESS,
-                message=pr_request,
-                timeout=30
-            )
-            
-            add_debug_log("SUCCESS", "Successfully received response from agent", {
-                "response_type": str(type(response)),
-                "response_preview": str(response)[:500]
-            })
-            return True, response
-            
-        except asyncio.TimeoutError as timeout_error:
-            error_msg = f"Agent communication timeout after 30s: {str(timeout_error)}"
-            add_debug_log("ERROR", "TIMEOUT ERROR", {
-                "error_message": error_msg,
-                "error_type": str(type(timeout_error))
-            })
-            return True, error_msg
-            
-        except ConnectionError as conn_error:
-            error_msg = f"Agent connection failed: {str(conn_error)}"
-            add_debug_log("ERROR", "CONNECTION ERROR", {
-                "error_message": error_msg,
-                "error_type": str(type(conn_error))
-            })
-            return True, error_msg
-            
-        except Exception as agent_error:
-            error_msg = f"Agent communication error: {str(agent_error)}"
-            import traceback
-            traceback_str = traceback.format_exc()
-            add_debug_log("ERROR", "AGENT ERROR", {
-                "error_message": error_msg,
-                "error_type": str(type(agent_error)),
-                "traceback": traceback_str
-            })
-            return True, error_msg
+        response = await send_sync_message(
+            destination=AGENT_ADDRESS,
+            message=pr_request,
+            timeout=30
+        )
+        
+        add_debug_log("SUCCESS", "Successfully received response from agent", {
+            "response_type": str(type(response)),
+            "response_preview": str(response)[:500]
+        })
+        return True, response
         
     except Exception as e:
-        error_msg = f"Outer exception in generate_press_releases: {str(e)}"
-        import traceback
-        traceback_str = traceback.format_exc()
-        add_debug_log("ERROR", "OUTER ERROR", {
-            "error_message": error_msg,
-            "error_type": str(type(e)),
-            "traceback": traceback_str
+        add_debug_log("ERROR", "Agent communication error", {
+            "error_message": str(e),
+            "error_type": str(type(e))
         })
-        return True, error_msg
+        return False, str(e)
 
 @app.route('/')
 def home():
