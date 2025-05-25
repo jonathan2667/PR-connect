@@ -50,6 +50,9 @@ export default function Dashboard() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [adminData, setAdminData] = useState<AdminData | null>(null);
   const [activeAdminTab, setActiveAdminTab] = useState('overview');
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [requestDetails, setRequestDetails] = useState<any | null>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
   useEffect(() => {
     checkUserAndLoadData();
@@ -112,6 +115,31 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error loading admin data:', error);
     }
+  };
+
+  const fetchRequestDetails = async (requestId: number) => {
+    try {
+      setLoadingDetails(true);
+      const token = localStorage.getItem('authToken');
+      
+      const response = await fetch(`https://pr-connect.onrender.com/api/requests/${requestId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        setRequestDetails(result.data);
+      }
+    } catch (error) {
+      console.error('Error fetching request details:', error);
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  const handleRequestClick = (request: any) => {
+    setSelectedRequest(request);
+    fetchRequestDetails(request.id);
   };
 
   if (loading) {
@@ -471,7 +499,11 @@ export default function Dashboard() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {adminData.allRequests.map((request) => (
-                          <tr key={request.id}>
+                          <tr 
+                            key={request.id}
+                            onClick={() => handleRequestClick(request)}
+                            className="hover:bg-gray-50 cursor-pointer transition-colors duration-200"
+                          >
                             <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{request.title}</td>
                             <td className="px-4 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">{request.user?.full_name}</div>
@@ -497,6 +529,136 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Press Release Details Modal */}
+      {selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-white">{selectedRequest.title}</h2>
+                  <p className="text-indigo-100 text-sm">
+                    By {selectedRequest.user?.full_name} • {selectedRequest.company_name} • {selectedRequest.newspaper}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedRequest(null);
+                    setRequestDetails(null);
+                  }}
+                  className="text-white hover:text-gray-200 transition-colors duration-200"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {loadingDetails ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                  <span className="ml-3 text-gray-600">Loading press release content...</span>
+                </div>
+              ) : requestDetails ? (
+                <div className="space-y-6">
+                  {/* Request Details */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-semibold text-gray-700 mb-3">📄 Original Request</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-600">Category:</span>
+                        <span className="ml-2 bg-indigo-100 text-indigo-800 px-2 py-1 rounded text-xs">
+                          {requestDetails.category}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="font-medium text-gray-600">Created:</span>
+                        <span className="ml-2">{new Date(requestDetails.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3">
+                      <span className="font-medium text-gray-600">Request Body:</span>
+                      <p className="mt-1 text-gray-700 bg-white p-3 rounded border text-sm">
+                        {requestDetails.body}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Generated Press Releases */}
+                  {requestDetails.responses && requestDetails.responses.length > 0 ? (
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-gray-700 text-lg">📰 Generated Press Releases</h3>
+                      {requestDetails.responses.map((response: any, index: number) => (
+                        <div key={response.id} className="bg-white border-2 border-gray-200 rounded-lg overflow-hidden">
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-3 border-b">
+                            <div className="flex items-center justify-between">
+                              <h4 className="font-medium text-gray-800">
+                                📰 Press Release #{index + 1}
+                              </h4>
+                              <div className="flex items-center space-x-4 text-xs text-gray-600">
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                  {response.word_count} words
+                                </span>
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                  {response.tone}
+                                </span>
+                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                                  {new Date(response.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-4">
+                            <div className="prose max-w-none">
+                              <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
+                                {response.body}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">📄</span>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">No Press Releases Generated</h3>
+                      <p className="text-gray-600">This request hasn't generated any press release content yet.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <span className="text-2xl">⚠️</span>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Unable to Load Details</h3>
+                  <p className="text-gray-600">Failed to load the press release details.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedRequest(null);
+                  setRequestDetails(null);
+                }}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors duration-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
