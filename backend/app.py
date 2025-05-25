@@ -15,11 +15,16 @@ import json
 import os
 from datetime import datetime
 
+# JWT and security imports
+import jwt
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
+
 # Load environment variables from .env file
 load_dotenv()
 
 # Import database models
-from models import db, NewsOutlet, Request, Response
+from models import db, NewsOutlet, Request, Response, Transcript, User
 
 # Import message models from agent
 class PressReleaseRequest(Model):
@@ -95,6 +100,55 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database
 db.init_app(app)
+
+# JWT Configuration
+JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'dev-secret-key-change-in-production')
+JWT_ALGORITHM = 'HS256'
+
+def generate_token(user_id, email):
+    """Generate JWT token for user authentication"""
+    payload = {
+        'user_id': user_id,
+        'email': email,
+        'exp': datetime.utcnow().timestamp() + (24 * 60 * 60)  # 24 hours
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
+def verify_token(token):
+    """Verify JWT token and return user data"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+def require_auth(f):
+    """Decorator to require authentication for endpoints"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = None
+        auth_header = request.headers.get('Authorization')
+        
+        if auth_header:
+            try:
+                token = auth_header.split(" ")[1]  # Bearer <token>
+            except IndexError:
+                pass
+        
+        if not token:
+            return jsonify({'message': 'Authentication token required'}), 401
+        
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'message': 'Invalid or expired token'}), 401
+        
+        # Add user info to request context
+        request.current_user = payload
+        return f(*args, **kwargs)
+    
+    return decorated_function
 
 # Configure CORS for both development and production
 def get_cors_origins():
@@ -632,29 +686,261 @@ def delete_request(request_id):
 def init_database():
     """Initialize database tables (for development/setup)"""
     try:
-        # Create all tables
-        with app.app_context():
-            db.create_all()
+        # Import the migration function
+        from migrate_db import initialize_database_for_api
+        
+        # Run safe migration (doesn't drop existing tables)
+        results = initialize_database_for_api(app)
+        
+        if results["success"]:
+            return jsonify({
+                "success": True,
+                "message": results["message"],
+                "data": {
+                    "tables_created": results["tables_created"],
+                    "outlets_added": results["outlets_added"],
+                    "counts": results["counts"]
+                }
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": results["message"]
+            }), 500
             
-            # Add default outlets if they don't exist
-            for outlet_name in AVAILABLE_OUTLETS.keys():
-                existing = NewsOutlet.query.filter_by(name=outlet_name).first()
-                if not existing:
-                    outlet = NewsOutlet(name=outlet_name)
-                    db.session.add(outlet)
-            
-            db.session.commit()
-            
-        return jsonify({
-            "success": True,
-            "message": "Database initialized successfully"
-        })
     except Exception as e:
         print(f"💥 Database initialization error: {e}")
         return jsonify({
             "success": False,
             "message": f"Database initialization failed: {str(e)}"
+        }), 500
+
+@app.route('/api/auth/register', methods=['POST'])
+def register_user():
+    """Register a new user"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['fullName', 'email', 'companyName', 'password', 'confirmPassword']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({
+                    "success": False,
+                    "message": f"Field '{field}' is required"
+                }), 400
+        
+        # Validate email format
+        email = data.get('email').strip().lower()
+        if '@' not in email:
+            return jsonify({
+                "success": False,
+                "message": "Invalid email format"
+            }), 400
+        
+        # Validate password confirmation
+        if data.get('password') != data.get('confirmPassword'):
+            return jsonify({
+                "success": False,
+                "message": "Passwords do not match"
+            }), 400
+        
+        # Check password length
+        if len(data.get('password')) < 6:
+            return jsonify({
+                "success": False,
+                "message": "Password must be at least 6 characters long"
+            }), 400
+        
+        # Check if user already exists
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
+            return jsonify({
+                "success": False,
+                "message": "User with this email already exists"
+            }), 409
+        
+        # Create new user
+        user = User(
+            full_name=data.get('fullName').strip(),
+            email=email,
+            company_name=data.get('companyName').strip()
+        )
+        user.set_password(data.get('password'))
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        # Generate token
+        token = generate_token(user.id, user.email)
+        
+        print(f"👤 New user registered: {user.email} ({user.company_name})")
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "user": user.to_dict(),
+                "token": token
+            },
+            "message": "User registered successfully"
         })
+        
+    except Exception as e:
+        print(f"⚠️ Registration error: {e}")
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": f"Registration failed: {str(e)}"
+        }), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login_user():
+    """Login user and return token"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        email = data.get('email', '').strip().lower()
+        password = data.get('password', '')
+        
+        if not email or not password:
+            return jsonify({
+                "success": False,
+                "message": "Email and password are required"
+            }), 400
+        
+        # Find user
+        user = User.query.filter_by(email=email).first()
+        if not user or not user.check_password(password):
+            return jsonify({
+                "success": False,
+                "message": "Invalid email or password"
+            }), 401
+        
+        if not user.is_active:
+            return jsonify({
+                "success": False,
+                "message": "Account is deactivated"
+            }), 401
+        
+        # Generate token
+        token = generate_token(user.id, user.email)
+        
+        print(f"🔐 User logged in: {user.email}")
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "user": user.to_dict(),
+                "token": token
+            },
+            "message": "Login successful"
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Login error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Login failed: {str(e)}"
+        }), 500
+
+@app.route('/api/auth/profile', methods=['GET'])
+@require_auth
+def get_user_profile():
+    """Get current user's profile"""
+    try:
+        user_id = request.current_user['user_id']
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User not found"
+            }), 404
+        
+        return jsonify({
+            "success": True,
+            "data": user.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Profile fetch error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Failed to fetch profile: {str(e)}"
+        }), 500
+
+@app.route('/api/auth/profile', methods=['PUT'])
+@require_auth
+def update_user_profile():
+    """Update current user's profile"""
+    try:
+        user_id = request.current_user['user_id']
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({
+                "success": False,
+                "message": "User not found"
+            }), 404
+        
+        data = request.get_json()
+        
+        # Update allowed fields
+        if 'fullName' in data:
+            user.full_name = data['fullName'].strip()
+        if 'companyName' in data:
+            user.company_name = data['companyName'].strip()
+        if 'phone' in data:
+            user.phone = data['phone'].strip() if data['phone'] else None
+        if 'location' in data:
+            user.location = data['location'].strip() if data['location'] else None
+        
+        user.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        print(f"📝 Profile updated for user: {user.email}")
+        
+        return jsonify({
+            "success": True,
+            "data": user.to_dict(),
+            "message": "Profile updated successfully"
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Profile update error: {e}")
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": f"Failed to update profile: {str(e)}"
+        }), 500
+
+@app.route('/api/auth/verify', methods=['GET'])
+@require_auth
+def verify_auth():
+    """Verify if token is valid"""
+    try:
+        user_id = request.current_user['user_id']
+        user = User.query.get(user_id)
+        
+        if not user or not user.is_active:
+            return jsonify({
+                "success": False,
+                "message": "Invalid user"
+            }), 401
+        
+        return jsonify({
+            "success": True,
+            "data": user.to_dict(),
+            "message": "Token is valid"
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Token verification error: {e}")
+        return jsonify({
+            "success": False,
+            "message": "Token verification failed"
+        }), 401
 
 if __name__ == '__main__':
     print("🚀 Starting Press Release Generation Platform")
@@ -668,26 +954,23 @@ if __name__ == '__main__':
     if database_url and 'postgresql' in database_url:
         print("🗄️ Database Configuration Found")
         try:
-            with app.app_context():
-                # Test database connection
-                db.create_all()
+            # Import the migration function
+            from migrate_db import initialize_database_for_api
+            
+            # Run safe migration (doesn't drop existing tables)
+            results = initialize_database_for_api(app)
+            
+            if results["success"]:
                 print("✅ Database tables created/verified")
-                
-                # Check/Add default outlets
-                outlets = NewsOutlet.query.all()
-                print(f"📊 Found {len(outlets)} outlets in database")
-                
-                if len(outlets) == 0:
-                    print("📰 Adding default outlets...")
-                    for outlet_name in AVAILABLE_OUTLETS.keys():
-                        outlet = NewsOutlet(name=outlet_name)
-                        db.session.add(outlet)
-                    db.session.commit()
-                    print(f"✅ Added {len(AVAILABLE_OUTLETS)} default outlets")
-                
+                print(f"📊 Table counts: {results['counts']}")
+                if results["outlets_added"]:
+                    print(f"📰 Added {len(results['outlets_added'])} new outlets: {', '.join(results['outlets_added'])}")
                 print("🗄️ PostgreSQL database connected successfully!")
+            else:
+                print(f"⚠️ Database initialization warning: {results['message']}")
+                print("📝 App will continue with existing database state")
         except Exception as e:
-            print(f"⚠️ Database connection failed: {e}")
+            print(f"⚠️ Database connection/initialization failed: {e}")
             print("📝 App will run with static data fallback")
     else:
         print("📝 No database configured, running with static data")

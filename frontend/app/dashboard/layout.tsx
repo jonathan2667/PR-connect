@@ -2,14 +2,33 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { authApi } from "../../lib/api";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const [userCompany, setUserCompany] = useState('Loading...');
+
+  useEffect(() => {
+    // Load user data from localStorage
+    const userData = localStorage.getItem('userData');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        setUserCompany(user.company_name || 'User');
+      } catch (err) {
+        console.error('Failed to parse user data:', err);
+        setUserCompany('User');
+      }
+    } else {
+      setUserCompany('User');
+    }
+  }, []);
 
   const handleLogout = () => {
-    // Clear the auth token from localStorage
-    localStorage.removeItem('authToken');
-
+    // Use the authApi logout function
+    authApi.logout();
+    
     // Redirect to the main page
     router.push('/');
   };
@@ -32,7 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="flex justify-between items-center px-8 py-6 border-b border-gray-200 bg-white">
           <h1 className="text-2xl font-bold text-blue-700">PRConnect</h1>
           <div className="flex items-center gap-4">
-            <span className="text-gray-700">Welcome, Acme Corp</span>
+            <span className="text-gray-700">Welcome, {userCompany}</span>
             <button
               onClick={handleLogout}
               className="group relative px-6 py-3 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-xl font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 hover:scale-105"

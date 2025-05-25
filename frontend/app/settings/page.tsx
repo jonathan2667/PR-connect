@@ -1,17 +1,49 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { authApi } from '../../lib/api';
 
 export default function SettingsPage() {
     const [profileData, setProfileData] = useState({
-        fullName: 'John Doe',
-        email: 'john.doe@acmecorp.com',
-        companyName: 'Acme Corporation',
-        phone: '+1 (555) 123-4567',
-        location: 'San Francisco, CA'
+        fullName: '',
+        email: '',
+        companyName: '',
+        phone: '',
+        location: ''
     });
+    const [originalData, setOriginalData] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const [isPageLoading, setIsPageLoading] = useState(true);
+    const [error, setError] = useState('');
+    const [successMessage, setSuccessMessage] = useState('');
+
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                setIsPageLoading(true);
+                const userData = await authApi.getProfile();
+                if (userData) {
+                    const profile = {
+                        fullName: userData.full_name || '',
+                        email: userData.email || '',
+                        companyName: userData.company_name || '',
+                        phone: userData.phone || '',
+                        location: userData.location || ''
+                    };
+                    setProfileData(profile);
+                    setOriginalData(profile);
+                }
+            } catch (err) {
+                console.error('Failed to load profile:', err);
+                setError('Failed to load profile data');
+            } finally {
+                setIsPageLoading(false);
+            }
+        };
+
+        loadProfile();
+    }, []);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -19,27 +51,71 @@ export default function SettingsPage() {
             ...prev,
             [name]: value
         }));
+        setError('');
+        setSuccessMessage('');
     };
 
     const handleSave = async () => {
         setIsLoading(true);
-        // Simulate API call
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        setIsLoading(false);
-        setIsEditing(false);
+        setError('');
+        setSuccessMessage('');
+
+        try {
+            const result = await authApi.updateProfile({
+                fullName: profileData.fullName,
+                companyName: profileData.companyName,
+                phone: profileData.phone,
+                location: profileData.location
+            });
+
+            if (result.success) {
+                setSuccessMessage('Profile updated successfully!');
+                setIsEditing(false);
+                
+                // Update stored user data
+                const storedData = localStorage.getItem('userData');
+                if (storedData) {
+                    const userData = JSON.parse(storedData);
+                    userData.full_name = profileData.fullName;
+                    userData.company_name = profileData.companyName;
+                    userData.phone = profileData.phone;
+                    userData.location = profileData.location;
+                    localStorage.setItem('userData', JSON.stringify(userData));
+                }
+                
+                // Update original data for future cancellations
+                setOriginalData(profileData);
+                
+                // Auto-hide success message after 3 seconds
+                setTimeout(() => setSuccessMessage(''), 3000);
+            } else {
+                setError(result.message || 'Failed to update profile');
+            }
+        } catch (err) {
+            console.error('Profile update error:', err);
+            setError(err instanceof Error ? err.message : 'Failed to update profile');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     const handleCancel = () => {
-        // Reset to original data (in real app, fetch from server)
-        setProfileData({
-            fullName: 'John Doe',
-            email: 'john.doe@acmecorp.com',
-            companyName: 'Acme Corporation',
-            phone: '+1 (555) 123-4567',
-            location: 'San Francisco, CA'
-        });
+        setProfileData(originalData as any);
         setIsEditing(false);
+        setError('');
+        setSuccessMessage('');
     };
+
+    if (isPageLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading profile...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 p-4 sm:p-8">
@@ -57,6 +133,26 @@ export default function SettingsPage() {
                             Manage your account information and preferences
                         </p>
                     </div>
+
+                    {/* Error Message */}
+                    {error && (
+                        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+                            <div className="flex items-center">
+                                <span className="text-red-500 mr-2">⚠️</span>
+                                <span>{error}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Success Message */}
+                    {successMessage && (
+                        <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg">
+                            <div className="flex items-center">
+                                <span className="text-green-500 mr-2">✅</span>
+                                <span>{successMessage}</span>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Profile Form */}
                     <form className="space-y-6">

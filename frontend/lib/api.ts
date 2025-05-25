@@ -177,4 +177,123 @@ export const api = {
 
     return response.json();
   }
+};
+
+// Authentication API functions
+export const authApi = {
+  // User registration
+  async register(userData: {
+    fullName: string;
+    email: string;
+    companyName: string;
+    password: string;
+    confirmPassword: string;
+  }): Promise<{ success: boolean; data?: any; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(userData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Registration failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // User login
+  async login(credentials: {
+    email: string;
+    password: string;
+  }): Promise<{ success: boolean; data?: any; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(credentials),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Login failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Get user profile
+  async getProfile(): Promise<any> {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch profile: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.success ? result.data : null;
+  },
+
+  // Update user profile
+  async updateProfile(profileData: {
+    fullName?: string;
+    companyName?: string;
+    phone?: string;
+    location?: string;
+  }): Promise<{ success: boolean; data?: any; message: string }> {
+    const token = localStorage.getItem('authToken');
+    const response = await fetch(`${API_BASE_URL}/api/auth/profile`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(profileData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || `Profile update failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Verify authentication token
+  async verifyToken(): Promise<{ success: boolean; data?: any; message: string }> {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      return { success: false, message: 'No token found' };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return { success: false, message: 'Token verification failed' };
+    }
+
+    return response.json();
+  },
+
+  // Logout (client-side)
+  logout(): void {
+    localStorage.removeItem('authToken');
+    // Clear any other stored user data
+    localStorage.removeItem('userData');
+  }
 }; 

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { authApi } from '../../lib/api';
 
 export default function LoginPage() {
     const [formData, setFormData] = useState({
@@ -27,18 +28,31 @@ export default function LoginPage() {
         setIsLoading(true);
         setError('');
 
-        try {
-            console.log('Login attempt with:', formData);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!formData.email || !formData.password) {
+            setError('Please fill in all fields');
+            setIsLoading(false);
+            return;
+        }
 
-            if (formData.email && formData.password) {
-                localStorage.setItem('authToken', 'demo-token');
+        try {
+            console.log('🔄 Attempting login...');
+            const result = await authApi.login(formData);
+
+            if (result.success && result.data) {
+                console.log('✅ Login successful:', result.data.user.email);
+                
+                // Store auth token and user data
+                localStorage.setItem('authToken', result.data.token);
+                localStorage.setItem('userData', JSON.stringify(result.data.user));
+                
+                // Redirect to dashboard
                 router.push('/dashboard');
             } else {
-                setError('Please fill in all fields');
+                setError(result.message || 'Login failed');
             }
         } catch (err) {
-            setError('Login failed. Please try again.');
+            console.error('❌ Login error:', err);
+            setError(err instanceof Error ? err.message : 'Login failed. Please try again.');
         } finally {
             setIsLoading(false);
         }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { authApi } from '../../lib/api';
 
 export default function SignupPage() {
     const [formData, setFormData] = useState({
@@ -61,13 +62,24 @@ export default function SignupPage() {
         }
 
         try {
-            console.log('Signup attempt with:', formData);
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('🔄 Attempting registration...');
+            const result = await authApi.register(formData);
 
-            localStorage.setItem('authToken', 'demo-token');
-            router.push('/dashboard');
+            if (result.success && result.data) {
+                console.log('✅ Registration successful:', result.data.user.email);
+                
+                // Store auth token and user data
+                localStorage.setItem('authToken', result.data.token);
+                localStorage.setItem('userData', JSON.stringify(result.data.user));
+                
+                // Redirect to dashboard
+                router.push('/dashboard');
+            } else {
+                setError(result.message || 'Registration failed');
+            }
         } catch (err) {
-            setError('Registration failed. Please try again.');
+            console.error('❌ Registration error:', err);
+            setError(err instanceof Error ? err.message : 'Registration failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
