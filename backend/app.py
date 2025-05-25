@@ -1502,7 +1502,7 @@ def create_admin():
         
         print("👑 Admin user created successfully")
         
-    return jsonify({
+        return jsonify({
             "success": True,
             "message": "Admin user created successfully",
             "data": {
