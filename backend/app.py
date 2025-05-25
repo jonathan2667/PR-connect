@@ -150,7 +150,6 @@ def require_auth(f):
     
     return decorated_function
 
-# Configure CORS for both development and production
 def get_cors_origins():
     """Get CORS origins based on environment"""
     # Default local development origins
@@ -181,10 +180,32 @@ def get_cors_origins():
     origins.extend([
         "https://pr-connect-frontend.onrender.com",
         "https://pr-connect-backend.onrender.com",
-
+        "https://pr-connect-frontend-xocv.onrender.com",  # Current deployed frontend
+        "https://pr-connect-r40k.onrender.com",
+        "https://pr-connect-r40k-frontend.onrender.com",
+        "https://pr-connect-r40k-web.onrender.com",
+        "https://pr-connect-r40k-frontend.onrender.com",
+        "https://pr-connect-frontend.onrender.com",
+        "https://pr-connect-backend.onrender.com"
     ])
     
     return origins
+
+def is_origin_allowed(origin):
+    """Check if origin is allowed, including pattern matching for Render deployments"""
+    if not origin:
+        return False
+    
+    # Check exact matches first
+    allowed_origins = get_cors_origins()
+    if origin in allowed_origins:
+        return True
+    
+    # Allow any pr-connect related Render deployment
+    if origin.startswith('https://pr-connect') and origin.endswith('.onrender.com'):
+        return True
+    
+    return False
 
 # Enable CORS for multiple environments with more permissive settings
 allowed_origins = get_cors_origins()
@@ -208,14 +229,16 @@ def log_request_info():
         print(f"🌍 Incoming request from origin: {origin}")
         print(f"📍 Request path: {request.path}")
         print(f"🔧 Method: {request.method}")
-        if origin not in allowed_origins:
-            print(f"⚠️ Origin {origin} not in allowed origins: {allowed_origins}")
+        if not is_origin_allowed(origin):
+            print(f"⚠️ Origin {origin} not in allowed patterns")
+        else:
+            print(f"✅ Origin {origin} is allowed")
 
 @app.after_request
 def after_request(response):
     """Add CORS headers manually as backup"""
     origin = request.headers.get('Origin')
-    if origin and origin in allowed_origins:
+    if origin and is_origin_allowed(origin):
         response.headers.add('Access-Control-Allow-Origin', origin)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
@@ -227,7 +250,7 @@ def after_request(response):
 def handle_options(path=None):
     """Handle preflight OPTIONS requests for all routes"""
     origin = request.headers.get('Origin')
-    if origin in allowed_origins:
+    if is_origin_allowed(origin):
         response = jsonify({'status': 'ok'})
         response.headers.add('Access-Control-Allow-Origin', origin)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
