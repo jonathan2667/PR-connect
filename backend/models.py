@@ -90,6 +90,28 @@ class Response(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
+class Transcript(db.Model):
+    """Speech-to-text transcripts table"""
+    __tablename__ = 'transcripts'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    word_count = db.Column(db.Integer)
+    preview = db.Column(db.String(200))
+    
+    def __repr__(self):
+        return f'<Transcript {self.id}>'
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'text': self.text,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'word_count': len(self.text.split()) if self.text else 0,
+            'preview': self.text[:100] + '...' if len(self.text) > 100 else self.text
+        }
+
 class User(db.Model):
     """Users table for authentication and profile management"""
     __tablename__ = 'users'
@@ -132,4 +154,4 @@ class User(db.Model):
         }
         if include_sensitive:
             data['password_hash'] = self.password_hash
-        return data 
+        return data

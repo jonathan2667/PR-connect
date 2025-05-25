@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+<<<<<<< Updated upstream
 import { useRouter } from 'next/navigation';
 import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
 
 export default function RequestPage() {
   const router = useRouter();
+=======
+import { useSearchParams } from 'next/navigation';
+import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
+
+export default function RequestPage() {
+  const searchParams = useSearchParams();
+>>>>>>> Stashed changes
   const [outlets, setOutlets] = useState<Record<string, any>>({});
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +29,8 @@ export default function RequestPage() {
   const [isRecognitionActive, setIsRecognitionActive] = useState(false);
   const [restartTimeout, setRestartTimeout] = useState<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
+  const [savingTranscript, setSavingTranscript] = useState(false);
+  const [transcriptSaveMessage, setTranscriptSaveMessage] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<PressReleaseRequest>({
     title: '',
@@ -203,6 +213,31 @@ export default function RequestPage() {
 
     loadData();
   }, []);
+
+  // Handle URL parameters for pre-filling form with transcript text
+  useEffect(() => {
+    const body = searchParams.get('body');
+    const source = searchParams.get('source');
+    
+    if (body && source === 'transcript') {
+      // Pre-fill the form with transcript text
+      setFormData(prev => ({
+        ...prev,
+        body: decodeURIComponent(body)
+      }));
+      
+      // Switch to manual mode since we're using saved transcript
+      setInputMode('manual');
+      
+      // Parse the transcript text to extract other fields
+      const parsedData = parseSpeechToFormData(decodeURIComponent(body));
+      setFormData(prev => ({
+        ...prev,
+        ...parsedData,
+        body: decodeURIComponent(body)
+      }));
+    }
+  }, [searchParams]);
 
   // Parse speech text to extract form data
   const parseSpeechToFormData = (text: string): Partial<PressReleaseRequest> => {
@@ -398,7 +433,42 @@ export default function RequestPage() {
       additional_notes: ''
     });
     setSpeechText('');
+    setAccumulatedSpeech('');
     setError(null);
+    setTranscriptSaveMessage(null);
+  };
+
+  const saveTranscript = async () => {
+    const finalText = accumulatedSpeech.trim() || speechText.trim();
+    if (!finalText) {
+      setError('No speech content to save');
+      return;
+    }
+
+    try {
+      setSavingTranscript(true);
+      setError(null);
+      setTranscriptSaveMessage(null);
+
+      const result = await api.saveTranscript(finalText);
+      
+      if (result.success) {
+        setTranscriptSaveMessage('✅ Transcript saved successfully! You can view it in the Transcripts section.');
+        // Clear the current speech after saving
+        setSpeechText('');
+        setAccumulatedSpeech('');
+        
+        // Auto-hide success message after 5 seconds
+        setTimeout(() => setTranscriptSaveMessage(null), 5000);
+      } else {
+        setError(`Failed to save transcript: ${result.message}`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save transcript');
+      console.error('Save transcript error:', err);
+    } finally {
+      setSavingTranscript(false);
+    }
   };
 
   if (result) {
@@ -523,6 +593,23 @@ export default function RequestPage() {
             </div>
           )}
 
+          {transcriptSaveMessage && (
+            <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded-lg animate-in slide-in-from-left duration-300">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <span className="text-green-500 mr-2">✅</span>
+                  <p className="text-green-700 font-medium">{transcriptSaveMessage}</p>
+                </div>
+                <button 
+                  onClick={() => setTranscriptSaveMessage(null)}
+                  className="text-green-700 hover:text-green-900"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Voice Input Section */}
           {inputMode === 'voice' && (
             <div className="space-y-6">
@@ -622,23 +709,43 @@ export default function RequestPage() {
                   </button>
                   
                   {(speechText || accumulatedSpeech) && !isListening && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const finalText = accumulatedSpeech.trim() || speechText.trim();
-                        if (finalText) {
-                          const parsedData = parseSpeechToFormData(finalText);
-                          setFormData(prev => ({
-                            ...prev,
-                            ...parsedData,
-                            body: finalText
-                          }));
-                        }
-                      }}
-                      className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                    >
-                      ✨ Process Speech
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={saveTranscript}
+                        disabled={savingTranscript}
+                        className="px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      >
+                        {savingTranscript ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            💾 Save Transcript
+                          </>
+                        )}
+                      </button>
+                      
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const finalText = accumulatedSpeech.trim() || speechText.trim();
+                          if (finalText) {
+                            const parsedData = parseSpeechToFormData(finalText);
+                            setFormData(prev => ({
+                              ...prev,
+                              ...parsedData,
+                              body: finalText
+                            }));
+                          }
+                        }}
+                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                      >
+                        ✨ Process Speech
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

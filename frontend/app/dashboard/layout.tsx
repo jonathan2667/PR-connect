@@ -42,6 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 data-[active=true]:bg-blue-100 data-[active=true]:text-blue-700 font-semibold" href="/dashboard">Dashboard</Link>
           <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/request">+ New Request</Link>
           <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/history">Request History</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/transcripts">📝 Transcripts</Link>
+          <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/analytics">Analytics</Link>
           <Link className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-100 text-gray-700 hover:text-blue-700 transition-colors" href="/settings">Settings</Link>
         </nav>
       </aside>

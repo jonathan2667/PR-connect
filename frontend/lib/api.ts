@@ -176,6 +176,63 @@ export const api = {
     }
 
     return response.json();
+  },
+
+  // Save transcript
+  async saveTranscript(text: string): Promise<{ success: boolean; data?: any; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/transcripts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
+  // Get all transcripts
+  async getTranscripts(): Promise<any[]> {
+    const response = await fetch(`${API_BASE_URL}/api/transcripts`);
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.success ? result.data : [];
+  },
+
+  // Get specific transcript
+  async getTranscript(transcriptId: number): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/transcripts/${transcriptId}`);
+    
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    return result.success ? result.data : null;
+  },
+
+  // Delete transcript
+  async deleteTranscript(transcriptId: number): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/transcripts/${transcriptId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 };
 
