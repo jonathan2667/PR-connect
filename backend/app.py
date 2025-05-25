@@ -26,6 +26,31 @@ load_dotenv()
 # Import database models
 from models import db, NewsOutlet, Request, Response, Transcript, User
 
+# Global debug log storage (in-memory for now)
+DEBUG_LOGS = []
+MAX_DEBUG_LOGS = 100
+
+def add_debug_log(level, message, details=None):
+    """Add a debug log entry that can be retrieved via API"""
+    import datetime
+    log_entry = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "level": level,
+        "message": message,
+        "details": details,
+        "environment": os.environ.get('RENDER_SERVICE_NAME', 'local')
+    }
+    DEBUG_LOGS.append(log_entry)
+    
+    # Keep only the last MAX_DEBUG_LOGS entries
+    if len(DEBUG_LOGS) > MAX_DEBUG_LOGS:
+        DEBUG_LOGS.pop(0)
+    
+    # Also print for local development
+    print(f"[{level}] {message}")
+    if details:
+        print(f"Details: {details}")
+
 # Import message models from agent
 class PressReleaseRequest(Model):
     title: str
@@ -274,13 +299,14 @@ async def generate_press_releases(pr_request: PressReleaseRequest):
     try:
         # Check if agent address is configured
         if not AGENT_ADDRESS:
-            print("⚠️ AGENT_ADDRESS not configured, skipping agent call")
+            add_debug_log("WARNING", "AGENT_ADDRESS not configured, skipping agent call")
             return True, "Agent not configured - generating content locally"
         
-        print(f"🔗 Attempting to connect to agent at: {AGENT_ADDRESS}")
-        print(f"📡 Sending message to AgentVerse...")
-        print(f"🌐 Environment: {os.environ.get('RENDER_SERVICE_NAME', 'local')}")
-        print(f"📋 Request data: {pr_request.dict()}")
+        add_debug_log("INFO", f"Attempting to connect to agent at: {AGENT_ADDRESS}")
+        add_debug_log("INFO", "Sending message to AgentVerse...", {
+            "environment": os.environ.get('RENDER_SERVICE_NAME', 'local'),
+            "request_data": pr_request.dict()
+        })
         
         # Enhanced error handling with more specific checks
         try:
@@ -290,36 +316,48 @@ async def generate_press_releases(pr_request: PressReleaseRequest):
                 timeout=30
             )
             
-            print(f"✅ Successfully received response from agent")
-            print(f"📦 Response type: {type(response)}")
-            print(f"📄 Response preview: {str(response)[:500]}...")
+            add_debug_log("SUCCESS", "Successfully received response from agent", {
+                "response_type": str(type(response)),
+                "response_preview": str(response)[:500]
+            })
             return True, response
             
         except asyncio.TimeoutError as timeout_error:
             error_msg = f"Agent communication timeout after 30s: {str(timeout_error)}"
-            print(f"⏰ TIMEOUT ERROR: {error_msg}")
+            add_debug_log("ERROR", "TIMEOUT ERROR", {
+                "error_message": error_msg,
+                "error_type": str(type(timeout_error))
+            })
             return True, error_msg
             
         except ConnectionError as conn_error:
             error_msg = f"Agent connection failed: {str(conn_error)}"
-            print(f"🔌 CONNECTION ERROR: {error_msg}")
+            add_debug_log("ERROR", "CONNECTION ERROR", {
+                "error_message": error_msg,
+                "error_type": str(type(conn_error))
+            })
             return True, error_msg
             
         except Exception as agent_error:
             error_msg = f"Agent communication error: {str(agent_error)}"
-            print(f"🤖 AGENT ERROR: {error_msg}")
-            print(f"🔍 Error type: {type(agent_error)}")
             import traceback
             traceback_str = traceback.format_exc()
-            print(f"📋 Full traceback: {traceback_str}")
+            add_debug_log("ERROR", "AGENT ERROR", {
+                "error_message": error_msg,
+                "error_type": str(type(agent_error)),
+                "traceback": traceback_str
+            })
             return True, error_msg
         
     except Exception as e:
         error_msg = f"Outer exception in generate_press_releases: {str(e)}"
-        print(f"❌ OUTER ERROR: {error_msg}")
-        print(f"🔍 Error type: {type(e)}")
         import traceback
-        print(f"📋 Full traceback: {traceback.format_exc()}")
+        traceback_str = traceback.format_exc()
+        add_debug_log("ERROR", "OUTER ERROR", {
+            "error_message": error_msg,
+            "error_type": str(type(e)),
+            "traceback": traceback_str
+        })
         return True, error_msg
 
 @app.route('/')
@@ -466,7 +504,12 @@ def generate_press_release():
                 return jsonify({
                     "success": True,
                     "data": response_data,
-                    "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully via AI agent"
+                    "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully via AI agent",
+                    "debug": {
+                        "agent_used": True,
+                        "recent_logs": DEBUG_LOGS[-10:],  # Last 10 debug entries
+                        "agent_address": AGENT_ADDRESS
+                    }
                 })
                 
             except Exception as parse_error:
@@ -579,7 +622,13 @@ def generate_press_release():
         return jsonify({
             "success": True,
             "data": response_data,
-            "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully"
+            "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully",
+            "debug": {
+                "agent_used": False,
+                "recent_logs": DEBUG_LOGS[-10:],  # Last 10 debug entries
+                "agent_address": AGENT_ADDRESS,
+                "fallback_reason": "Agent communication failed or not configured"
+            }
         })
     except Exception as e:
         print(f"💥 Exception in generate_press_release: {str(e)}")
@@ -1692,6 +1741,19 @@ def admin_get_newspaper_analytics():
             "success": False,
             "message": f"Error loading newspaper analytics: {str(e)}"
         }), 500
+
+@app.route('/api/debug/logs', methods=['GET'])
+def get_debug_logs():
+    """Get recent debug logs for troubleshooting"""
+    return jsonify({
+        "success": True,
+        "data": {
+            "logs": DEBUG_LOGS[-50:],  # Return last 50 logs
+            "total_logs": len(DEBUG_LOGS),
+            "agent_address": AGENT_ADDRESS,
+            "environment": os.environ.get('RENDER_SERVICE_NAME', 'local')
+        }
+    })
 
 if __name__ == '__main__':
     print("🚀 Starting Press Release Generation Platform")
