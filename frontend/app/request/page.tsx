@@ -539,10 +539,10 @@ function RequestPageContent() {
   if (result) {
     return (
       <DashboardLayout>
-        <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
-          <div className="max-w-6xl mx-auto">
-            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-8 animate-in slide-in-from-bottom-5 duration-700">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-6 md:py-12 px-2 md:px-4">
+          <div className="max-w-full md:max-w-6xl mx-auto">
+            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-4 md:p-8 animate-in slide-in-from-bottom-5 duration-700">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
                 <div>
                   <h2 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
                     🎉 Generated Press Releases
@@ -586,21 +586,21 @@ function RequestPageContent() {
 
   return (
     <DashboardLayout>
-      <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-12 px-4">
-        <div className="max-w-4xl mx-auto">
+      <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-6 md:py-12 px-2 md:px-4">
+        <div className="max-w-full md:max-w-4xl mx-auto">
           {/* Header Section */}
-          <div className="text-center mb-8 md:mb-12 animate-in slide-in-from-top duration-700">
-            <h1 className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+          <div className="text-center mb-6 md:mb-12 animate-in slide-in-from-top duration-700">
+            <h1 className="text-2xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
               ✨ Create Press Release
             </h1>
-            <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-4">
+            <p className="text-base md:text-xl text-gray-600 max-w-full md:max-w-2xl mx-auto leading-relaxed px-2 md:px-4">
               Generate professional press releases using voice input or manual text entry
             </p>
           </div>
 
           {/* Input Mode Toggle */}
-          <div className="mb-6 md:mb-8 flex justify-center animate-in slide-in-from-top duration-500 px-4">
-            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-white/20 p-2 flex w-full max-w-md">
+          <div className="mb-6 md:mb-8 flex justify-center animate-in slide-in-from-top duration-500 px-2 md:px-4">
+            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-white/20 p-2 flex w-full max-w-sm md:max-w-md">
               <button
                 onClick={() => setInputMode('manual')}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 md:px-6 py-3 rounded-xl font-semibold transition-all duration-200 text-sm md:text-base ${inputMode === 'manual'
@@ -639,7 +639,7 @@ function RequestPageContent() {
           {/* Main Form */}
           <form
             onSubmit={handleSubmit}
-            className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-4 md:p-8 space-y-6 md:space-y-8 animate-in slide-in-from-bottom duration-700"
+            className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-3 md:p-8 space-y-4 md:space-y-8 animate-in slide-in-from-bottom duration-700"
           >
             {error && (
               <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-lg animate-in slide-in-from-left duration-300">
