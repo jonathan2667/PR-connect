@@ -391,14 +391,42 @@ def generate_press_release():
         if success and response and AGENT_ADDRESS:
             # Try to parse agent response
             try:
+                print(f"🔍 Agent response type: {type(response)}")
+                print(f"🔍 Agent response content: {str(response)[:300]}...")
+                
                 # Check if response is a structured PressReleaseResponse object
                 if hasattr(response, 'generated_releases'):
+                    print("✅ Processing structured PressReleaseResponse object")
                     agent_response = response
                     generated_releases = agent_response.generated_releases
+                    
+                    # Convert to dictionaries to ensure we extract clean content
+                    clean_releases = []
+                    for release in generated_releases:
+                        clean_releases.append({
+                            'outlet': release.outlet,
+                            'content': release.content,  # This should be the clean content
+                            'tone': release.tone,
+                            'word_count': release.word_count
+                        })
+                    generated_releases = clean_releases
+                    
                 # Or if it's a dictionary with structured data
                 elif isinstance(response, dict) and 'generated_releases' in response:
+                    print("✅ Processing dictionary response with generated_releases")
                     agent_response = response
-                    generated_releases = response['generated_releases']
+                    generated_releases = []
+                    
+                    # Extract clean content from dictionary structure
+                    for release in response['generated_releases']:
+                        generated_releases.append({
+                            'outlet': release.get('outlet', 'Unknown'),
+                            'content': release.get('content', ''),  # Extract only content
+                            'tone': release.get('tone', 'Professional'),
+                            'word_count': release.get('word_count', 0)
+                        })
+                    generated_releases = clean_releases
+                    
                 # Handle case where agent returns raw string content (new behavior)
                 elif isinstance(response, str):
                     print(f"✅ Received raw string response from agent: {len(response)} chars")
@@ -433,16 +461,19 @@ def generate_press_release():
                     raise ValueError("Invalid agent response format")
                 
                 print(f"✅ Successfully parsed agent response with {len(generated_releases)} releases")
+                print(f"🔍 First release content preview: {generated_releases[0]['content'][:100] if generated_releases else 'No releases'}...")
                 
                 # Store agent-generated content in database
                 db_requests = []
                 sample_releases = []
                 
                 for release in generated_releases:
-                    outlet_name = release.outlet if hasattr(release, 'outlet') else release['outlet']
-                    content = release.content if hasattr(release, 'content') else release['content']
-                    tone = release.tone if hasattr(release, 'tone') else release['tone']
-                    word_count = release.word_count if hasattr(release, 'word_count') else release['word_count']
+                    outlet_name = release['outlet']
+                    content = release['content']  # This is the clean press release content
+                    tone = release['tone']
+                    word_count = release['word_count']
+                    
+                    print(f"📝 Storing content for {outlet_name}: {len(content)} chars, preview: {content[:100]}...")
                     
                     # Find or create outlet in database
                     try:
@@ -467,9 +498,9 @@ def generate_press_release():
                         db.session.flush()
                         db_requests.append(db_request)
                         
-                        # Store agent response in database
+                        # Store agent response in database - ONLY THE CONTENT
                         db_response = Response(
-                            body=content,
+                            body=content,  # Store ONLY the press release content, not the JSON
                             request_id=db_request.id,
                             tone=tone,
                             word_count=word_count
@@ -481,12 +512,17 @@ def generate_press_release():
                         # Continue without database storage for this outlet
                         pass
                     
+                    # Add to response - ONLY THE CONTENT
                     sample_releases.append({
                         "outlet": outlet_name,
-                        "content": content,
+                        "content": content,  # Send ONLY the content to frontend
                         "tone": tone,
                         "word_count": word_count
                     })
+                
+                print(f"📤 Sending to frontend: {len(sample_releases)} releases")
+                for i, release in enumerate(sample_releases):
+                    print(f"📤 Release {i+1} ({release['outlet']}): {len(release['content'])} chars, preview: {release['content'][:100]}...")
                 
                 # Commit database changes
                 try:
@@ -496,17 +532,18 @@ def generate_press_release():
                     print(f"⚠️ Database commit error: {db_error}")
                     db.session.rollback()
                 
-                # Return agent-generated content
+                # Return agent-generated content - SEND ONLY CONTENT TO FRONTEND
                 response_data = {
-                    "request_id": agent_response.request_id if hasattr(agent_response, 'request_id') else agent_response.get('request_id', f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}"),
+                    "request_id": agent_response.get('request_id', f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}") if isinstance(agent_response, dict) else getattr(agent_response, 'request_id', f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}"),
                     "company_name": pr_request.company_name,
                     "category": pr_request.category,
-                    "generated_releases": sample_releases,
-                    "timestamp": agent_response.timestamp if hasattr(agent_response, 'timestamp') else agent_response.get('timestamp', datetime.now().isoformat()),
+                    "generated_releases": sample_releases,  # This contains ONLY content, not JSON
+                    "timestamp": agent_response.get('timestamp', datetime.now().isoformat()) if isinstance(agent_response, dict) else getattr(agent_response, 'timestamp', datetime.now().isoformat()),
                     "status": "completed"
                 }
                 
                 print(f"✅ Using agent-generated content with {len(sample_releases)} press releases")
+                print(f"✅ Final response preview: {sample_releases[0]['content'][:100] if sample_releases else 'No releases'}...")
                 
                 return jsonify({
                     "success": True,
