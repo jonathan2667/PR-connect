@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { api } from '../../lib/api';
+import { api, authApi } from '../../lib/api';
 
 interface ActivityItem {
   id: number;
@@ -12,6 +12,28 @@ interface ActivityItem {
   outlets: string[];
   date: string;
   category?: string;
+}
+
+interface User {
+  id: number;
+  full_name: string;
+  email: string;
+  company_name: string;
+  is_admin: boolean;
+  is_active: boolean;
+  created_at: string;
+  total_requests?: number;
+}
+
+interface AdminData {
+  allUsers: User[];
+  allRequests: any[];
+  systemStats: {
+    total_users: number;
+    total_requests: number;
+    total_responses: number;
+    newspaper_breakdown: Record<string, number>;
+  };
 }
 
 export default function Dashboard() {
@@ -25,16 +47,24 @@ export default function Dashboard() {
   const [recentActivity, setRecentActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [adminData, setAdminData] = useState<AdminData | null>(null);
+  const [activeAdminTab, setActiveAdminTab] = useState('overview');
 
   useEffect(() => {
-    loadDashboardData();
+    checkUserAndLoadData();
   }, []);
 
-  const loadDashboardData = async () => {
+  const checkUserAndLoadData = async () => {
     try {
       setLoading(true);
       setError(null);
       
+      // Get current user profile
+      const user = await authApi.getProfile();
+      setCurrentUser(user);
+      
+      // Load regular dashboard data
       const data = await api.getDashboardStats();
       if (data) {
         setStats({
@@ -45,11 +75,42 @@ export default function Dashboard() {
         });
         setRecentActivity(data.recentActivity || []);
       }
+
+      // If user is admin, load admin data
+      if (user?.is_admin) {
+        await loadAdminData();
+      }
     } catch (err) {
       console.error('Error loading dashboard data:', err);
       setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdminData = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      
+      const [usersRes, requestsRes, statsRes] = await Promise.all([
+        fetch('https://pr-connect.onrender.com/api/admin/users', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(res => res.json()),
+        fetch('https://pr-connect.onrender.com/api/admin/requests', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(res => res.json()),
+        fetch('https://pr-connect.onrender.com/api/admin/stats', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        }).then(res => res.json())
+      ]);
+
+      setAdminData({
+        allUsers: usersRes.success ? usersRes.data : [],
+        allRequests: requestsRes.success ? requestsRes.data.requests : [],
+        systemStats: statsRes.success ? statsRes.data.overview : {}
+      });
+    } catch (error) {
+      console.error('Error loading admin data:', error);
     }
   };
 
@@ -76,7 +137,7 @@ export default function Dashboard() {
               <p className="text-red-700">Error loading dashboard: {error}</p>
             </div>
             <button 
-              onClick={loadDashboardData}
+              onClick={checkUserAndLoadData}
               className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
             >
               Try Again
@@ -254,6 +315,187 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* Admin Section - Only visible to admin users */}
+        {currentUser?.is_admin && adminData && (
+          <div className="mt-12">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold bg-gradient-to-r from-red-600 via-orange-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                🔧 Admin Dashboard
+              </h2>
+              <p className="text-gray-600 text-lg">
+                System-wide overview and user management
+              </p>
+            </div>
+
+            {/* Admin Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+              <div className="bg-gradient-to-r from-red-500 to-pink-600 rounded-2xl shadow-lg p-6 text-white">
+                <h3 className="text-sm font-semibold uppercase tracking-wide opacity-90">Total System Users</h3>
+                <p className="text-3xl font-bold">{adminData.systemStats.total_users || adminData.allUsers.length}</p>
+              </div>
+              <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl shadow-lg p-6 text-white">
+                <h3 className="text-sm font-semibold uppercase tracking-wide opacity-90">System Requests</h3>
+                <p className="text-3xl font-bold">{adminData.systemStats.total_requests || adminData.allRequests.length}</p>
+              </div>
+              <div className="bg-gradient-to-r from-pink-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
+                <h3 className="text-sm font-semibold uppercase tracking-wide opacity-90">System Responses</h3>
+                <p className="text-3xl font-bold">{adminData.systemStats.total_responses || 0}</p>
+              </div>
+            </div>
+
+            {/* Admin Tabs */}
+            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg border border-white/20 p-6">
+              <div className="flex space-x-1 rounded-lg bg-gray-100 p-1 mb-6">
+                {[
+                  { id: 'overview', label: '📊 Overview' },
+                  { id: 'users', label: '👥 All Users' },
+                  { id: 'requests', label: '📰 All Requests' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveAdminTab(tab.id)}
+                    className={`flex-1 py-2 px-4 text-sm font-medium text-center rounded-md transition-colors duration-200 ${
+                      activeAdminTab === tab.id
+                        ? 'bg-white text-red-700 shadow'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Overview Tab */}
+              {activeAdminTab === 'overview' && (
+                <div className="space-y-6">
+                  <h3 className="text-xl font-bold text-gray-800">System Overview</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-700 mb-3">📰 Newspaper Usage</h4>
+                      <div className="space-y-2">
+                        {adminData.systemStats.newspaper_breakdown && Object.entries(adminData.systemStats.newspaper_breakdown).map(([newspaper, count]) => (
+                          <div key={newspaper} className="flex justify-between items-center">
+                            <span className="text-sm">{newspaper}</span>
+                            <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-semibold text-gray-700 mb-3">📈 Quick Stats</h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span>Active Users:</span>
+                          <span className="font-medium">{adminData.allUsers.filter(u => u.is_active).length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Admin Users:</span>
+                          <span className="font-medium">{adminData.allUsers.filter(u => u.is_admin).length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total Press Releases:</span>
+                          <span className="font-medium">{adminData.allRequests.length}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Users Tab */}
+              {activeAdminTab === 'users' && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-gray-800">All System Users</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requests</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {adminData.allUsers.map((user) => (
+                          <tr key={user.id}>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 flex items-center">
+                                  {user.full_name}
+                                  {user.is_admin && (
+                                    <span className="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                      Admin
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-sm text-gray-500">{user.email}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{user.company_name}</td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{user.total_requests || 0}</td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {user.is_active ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(user.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Requests Tab */}
+              {activeAdminTab === 'requests' && (
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold text-gray-800">All Press Release Requests</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Company</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Newspaper</th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {adminData.allRequests.map((request) => (
+                          <tr key={request.id}>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{request.title}</td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <div className="text-sm font-medium text-gray-900">{request.user?.full_name}</div>
+                              <div className="text-sm text-gray-500">{request.user?.email}</div>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">{request.company_name}</td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                {request.newspaper || request.news_outlet?.name || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {new Date(request.created_at).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
