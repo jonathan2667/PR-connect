@@ -391,23 +391,47 @@ def generate_press_release():
         if success and response and AGENT_ADDRESS:
             # Try to parse agent response
             try:
-                # Check if response is already a PressReleaseResponse object
+                # Check if response is a structured PressReleaseResponse object
                 if hasattr(response, 'generated_releases'):
                     agent_response = response
-                # Or if it's a dictionary that can be converted
+                    generated_releases = agent_response.generated_releases
+                # Or if it's a dictionary with structured data
                 elif isinstance(response, dict) and 'generated_releases' in response:
                     agent_response = response
+                    generated_releases = response['generated_releases']
+                # Handle case where agent returns raw string content (new behavior)
+                elif isinstance(response, str):
+                    print(f"✅ Received raw string response from agent: {len(response)} chars")
+                    # Create a structured response from the raw content
+                    # Since we simplified the agent to return markdown directly, 
+                    # we need to create releases for each requested outlet
+                    generated_releases = []
+                    for outlet in pr_request.target_outlets:
+                        generated_releases.append({
+                            'outlet': outlet,
+                            'content': response,  # Use the raw agent response as content
+                            'tone': AVAILABLE_OUTLETS.get(outlet, {}).get('description', 'Professional tone'),
+                            'word_count': len(response.split())
+                        })
+                    
+                    agent_response = {
+                        'request_id': f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                        'company_name': pr_request.company_name,
+                        'category': pr_request.category,
+                        'generated_releases': generated_releases,
+                        'timestamp': datetime.now().isoformat(),
+                        'status': 'completed'
+                    }
                 else:
                     print(f"⚠️ Unexpected agent response format: {type(response)}")
+                    print(f"⚠️ Response content: {str(response)[:200]}...")
                     raise ValueError("Invalid agent response format")
                 
-                print(f"✅ Successfully parsed agent response with {len(agent_response.generated_releases if hasattr(agent_response, 'generated_releases') else agent_response['generated_releases'])} releases")
+                print(f"✅ Successfully parsed agent response with {len(generated_releases)} releases")
                 
                 # Store agent-generated content in database
                 db_requests = []
                 sample_releases = []
-                
-                generated_releases = agent_response.generated_releases if hasattr(agent_response, 'generated_releases') else agent_response['generated_releases']
                 
                 for release in generated_releases:
                     outlet_name = release.outlet if hasattr(release, 'outlet') else release['outlet']

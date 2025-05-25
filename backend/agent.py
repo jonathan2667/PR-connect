@@ -95,32 +95,19 @@ async def generate_ai_press_release(request: PressReleaseRequest, outlet: str, c
     
     outlet_info = OUTLET_STYLES.get(outlet, OUTLET_STYLES["General"])
     
-    # Create the prompt for DeepSeek with strict JSON-only response requirements
-    prompt = f"""You are a professional press release writer. Generate content for {outlet} based on the following information:
+    # Create the prompt for DeepSeek with direct content generation
+    prompt = f"""You are a professional press release writer. Write a press release in markdown format for {outlet}.
 
-COMPANY: {request.company_name}
-TITLE: {request.title}
-CATEGORY: {request.category}
-CONTENT: {request.body}
-CONTACT: {request.contact_info}
-NOTES: {request.additional_notes}
+Company: {request.company_name}
+Title: {request.title}
+Category: {request.category}
+Content: {request.body}
+Contact Info: {request.contact_info}
+Additional Notes: {request.additional_notes}
 
 Writing Style: {outlet_info['instructions']}
 
-CRITICAL INSTRUCTIONS:
-- Respond with ONLY a valid JSON object
-- No text before or after the JSON
-- No explanations, comments, or markdown formatting
-- No code blocks or backticks
-- Ensure the content is in markdown format within the JSON
-
-Required JSON structure:
-{{
-    "content": "YOUR_MARKDOWN_FORMATTED_PRESS_RELEASE_HERE",
-    "tone": "{outlet_info['tone']}"
-}}
-
-Start your response immediately with the opening curly brace {{"""
+Generate a professional press release in markdown format. Include proper headings, bullet points, and formatting appropriate for {outlet}. Write directly in markdown - no JSON, no code blocks, just the press release content."""
 
     try:
         ctx.logger.info(f"🤖 Calling DeepSeek AI for {outlet}...")
@@ -136,7 +123,7 @@ Start your response immediately with the opening curly brace {{"""
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a professional press release writer. You MUST respond with ONLY valid JSON. No explanations, no code blocks, no additional text. Start your response immediately with { and end with }."
+                    "content": "You are a professional press release writer. Generate well-formatted markdown press releases. Write directly in markdown format - no JSON, no code blocks, no explanations."
                 },
                 {
                     "role": "user",
@@ -158,103 +145,44 @@ Start your response immediately with the opening curly brace {{"""
                 "HTTP-Referer": "https://pr-connect-r40k.onrender.com",
                 "X-Title": "PR-Connect",
             },
-            json=request_data  # Use json= instead of data=json.dumps() to set Content-Type automatically
+            json=request_data,  # Use json= instead of data=json.dumps() to set Content-Type automatically
+            timeout=30  # Add 30 second timeout
         )
         
         ctx.logger.info(f"📊 API Response Status: {response.status_code}")
         
         if response.status_code == 200:
             ai_response = response.json()
-            content_text = ai_response['choices'][0]['message']['content'].strip()
+            ctx.logger.info(f"📦 Full API Response Structure: {list(ai_response.keys())}")
             
-            # Clean up the response to extract only the JSON part
-            try:
-                # Remove any potential markdown code blocks
-                if content_text.startswith('```'):
-                    lines = content_text.split('\n')
-                    # Find first line that starts with {
-                    start_idx = 0
-                    for i, line in enumerate(lines):
-                        if line.strip().startswith('{'):
-                            start_idx = i
-                            break
-                    # Find last line that ends with }
-                    end_idx = len(lines) - 1
-                    for i in range(len(lines) - 1, -1, -1):
-                        if lines[i].strip().endswith('}'):
-                            end_idx = i
-                            break
-                    content_text = '\n'.join(lines[start_idx:end_idx + 1])
+            if 'choices' in ai_response and len(ai_response['choices']) > 0:
+                content_text = ai_response['choices'][0]['message']['content'].strip()
+                ctx.logger.info(f"🤖 Raw AI Response: {content_text[:300]}...")
                 
-                # Find the JSON object boundaries
-                start_brace = content_text.find('{')
-                if start_brace != -1:
-                    # Find the matching closing brace
-                    brace_count = 0
-                    end_brace = -1
-                    for i in range(start_brace, len(content_text)):
-                        if content_text[i] == '{':
-                            brace_count += 1
-                        elif content_text[i] == '}':
-                            brace_count -= 1
-                            if brace_count == 0:
-                                end_brace = i
-                                break
-                    
-                    if end_brace != -1:
-                        json_text = content_text[start_brace:end_brace + 1]
-                        parsed_content = json.loads(json_text)
-                        content = parsed_content.get('content', '')
-                        tone = parsed_content.get('tone', outlet_info['tone'])
-                        
-                        # Validate that we got meaningful content
-                        if not content or len(content.strip()) < 50:
-                            raise ValueError("Generated content too short or empty")
-                            
-                    else:
-                        raise ValueError("No complete JSON object found")
-                else:
-                    raise ValueError("No JSON object found in response")
-                    
-            except (json.JSONDecodeError, ValueError, KeyError) as e:
-                ctx.logger.warning(f"Failed to parse AI JSON response for {outlet}: {str(e)}")
-                ctx.logger.warning(f"Raw AI response: {content_text[:200]}...")
-                # Use fallback content generation
-                content = f"""# {request.title}
-
-**{request.company_name}** announces {request.category.lower()}.
-
-## Overview
-
-{request.body}
-
-## Key Highlights
-
-• Significant development in {request.category.lower()}
-• Strategic advancement for {request.company_name}
-• Enhanced capabilities and market position
-
-## About {request.company_name}
-
-{request.company_name} continues to innovate and deliver value to its stakeholders through strategic initiatives and market-leading solutions.
-
-## Contact Information
-
-{request.contact_info if request.contact_info else f'For more information about {request.company_name}, please contact our media relations team.'}
-
----
-*This press release was generated for {outlet} distribution.*"""
+                # Use the AI content directly - no need to parse JSON
+                content = content_text
                 tone = outlet_info['tone']
-            
-            word_count = len(content.split())
-            ctx.logger.info(f"✅ AI generated {outlet} content: {word_count} words")
-            
-            return GeneratedPressRelease(
-                outlet=outlet,
-                content=content,
-                tone=outlet_info['tone'],
-                word_count=word_count
-            )
+                
+                # Validate that we got meaningful content
+                if content and len(content.strip()) > 50:
+                    word_count = len(content.split())
+                    ctx.logger.info(f"✅ AI generated {outlet} content: {word_count} words")
+                    ctx.logger.info(f"🎭 Using tone: {tone}")
+                    ctx.logger.info(f"📄 Content preview: {content[:150]}...")
+                    ctx.logger.info(f"🚀 SUCCESS: Using AI-generated content for {outlet}")
+                    
+                    return GeneratedPressRelease(
+                        outlet=outlet,
+                        content=content,
+                        tone=tone,
+                        word_count=word_count
+                    )
+                else:
+                    ctx.logger.warning(f"⚠️ Content too short: {len(content)} chars")
+                    return create_fallback_release(request, outlet)
+            else:
+                ctx.logger.error(f"❌ No choices in API response: {ai_response}")
+                return create_fallback_release(request, outlet)
         else:
             ctx.logger.error(f"❌ API Error for {outlet}: Status {response.status_code}")
             try:
@@ -264,6 +192,15 @@ Start your response immediately with the opening curly brace {{"""
                 ctx.logger.error(f"❌ API Raw Response: {response.text}")
             return create_fallback_release(request, outlet)
             
+    except requests.exceptions.Timeout:
+        ctx.logger.error(f"⏰ API Timeout for {outlet}: DeepSeek API took longer than 30 seconds")
+        return create_fallback_release(request, outlet)
+    except requests.exceptions.ConnectionError:
+        ctx.logger.error(f"🌐 Connection Error for {outlet}: Cannot reach OpenRouter API")
+        return create_fallback_release(request, outlet)
+    except requests.exceptions.RequestException as e:
+        ctx.logger.error(f"🔌 Network Error for {outlet}: {str(e)}")
+        return create_fallback_release(request, outlet)
     except Exception as e:
         ctx.logger.error(f"❌ Error calling AI for {outlet}: {str(e)}")
         return create_fallback_release(request, outlet)
@@ -297,6 +234,9 @@ def create_fallback_release(request: PressReleaseRequest, outlet: str) -> Genera
 {f"**Additional Notes:** {request.additional_notes}" if request.additional_notes else ""}
 
 *This press release was generated for {outlet} - {outlet_info['tone']}*"""
+    
+    print(f"⚠️ WARNING: Using fallback template content for {outlet} (not AI-generated)")
+    print(f"📄 Fallback content preview: {fallback_content[:150]}...")
     
     return GeneratedPressRelease(
         outlet=outlet,
@@ -361,4 +301,4 @@ async def handle_press_release_request(ctx: Context, sender: str, msg: PressRele
     await ctx.send(sender, response)
 
 if __name__ == "__main__":
-    agent.run()
+    agent.run()content
