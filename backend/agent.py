@@ -9,6 +9,7 @@ from datetime import datetime
 from openai import OpenAI
 import json
 import os
+import requests
 
 # Define message models for Press Release workflow
 class PressReleaseRequest(Model):
@@ -124,29 +125,44 @@ Start your response immediately with the opening curly brace {{"""
     try:
         ctx.logger.info(f"🤖 Calling DeepSeek AI for {outlet}...")
         
-        completion = client.chat.completions.create(
-            extra_headers={
+        # Check API key first
+        if not API_KEY_DS:
+            ctx.logger.error(f"❌ API_KEY_DS not set for {outlet}")
+            return create_fallback_release(request, outlet)
+        
+        # Log the request structure for debugging (without exposing the API key)
+        request_data = {
+            "model": "deepseek/deepseek-r1-zero:free",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a professional press release writer. You MUST respond with ONLY valid JSON. No explanations, no code blocks, no additional text. Start your response immediately with { and end with }."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "max_tokens": 2000,
+            "temperature": 0.3,
+            "top_p": 0.9
+        }
+        
+        ctx.logger.info(f"📡 API Request structure: model={request_data['model']}, messages_count={len(request_data['messages'])}")
+        
+        # Call OpenRouter API with DeepSeek model
+        response = requests.post(
+            url="https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {API_KEY_DS}",
+                "Content-Type": "application/json",
                 "HTTP-Referer": "https://pr-connect-r40k.onrender.com",
                 "X-Title": "PR-Connect",
             },
-            data=json.dumps({
-                "model": "deepseek/deepseek-r1-zero:free",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a professional press release writer. You MUST respond with ONLY valid JSON. No explanations, no code blocks, no additional text. Start your response immediately with { and end with }."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "max_tokens": 2000,
-                "temperature": 0.3,
-                "top_p": 0.9,
-                "response_format": {"type": "json_object"} if "deepseek" in "deepseek/deepseek-r1-zero:free" else None
-            })
+            data=json.dumps(request_data)
         )
+        
+        ctx.logger.info(f"📊 API Response Status: {response.status_code}")
         
         if response.status_code == 200:
             ai_response = response.json()
@@ -241,7 +257,12 @@ Start your response immediately with the opening curly brace {{"""
                 word_count=word_count
             )
         else:
-            ctx.logger.error(f"❌ Empty response from AI for {outlet}")
+            ctx.logger.error(f"❌ API Error for {outlet}: Status {response.status_code}")
+            try:
+                error_response = response.json()
+                ctx.logger.error(f"❌ API Error Details: {error_response}")
+            except:
+                ctx.logger.error(f"❌ API Raw Response: {response.text}")
             return create_fallback_release(request, outlet)
             
     except Exception as e:
