@@ -294,23 +294,34 @@ function RequestPageContent() {
     const body = searchParams.get('body');
     const source = searchParams.get('source');
     
-    if (body && source === 'transcript') {
+    if (body && (source === 'transcript' || source === 'combined-transcripts')) {
       // Pre-fill the form with transcript text
       setFormData(prev => ({
         ...prev,
         body: decodeURIComponent(body)
       }));
       
-      // Switch to manual mode since we're using saved transcript
+      // Switch to manual mode since we're using saved transcript(s)
       setInputMode('manual');
       
-      // Parse the transcript text to extract other fields
-      const parsedData = parseSpeechToFormData(decodeURIComponent(body));
-      setFormData(prev => ({
-        ...prev,
-        ...parsedData,
-        body: decodeURIComponent(body)
-      }));
+      // Parse the transcript text to extract other fields (only for single transcripts)
+      // For combined transcripts, we keep the full formatted content as-is
+      if (source === 'transcript') {
+        const parsedData = parseSpeechToFormData(decodeURIComponent(body));
+        setFormData(prev => ({
+          ...prev,
+          ...parsedData,
+          body: decodeURIComponent(body)
+        }));
+      } else if (source === 'combined-transcripts') {
+        // For combined transcripts, we don't parse for category since the content
+        // is already properly formatted with timestamps and metadata
+        setFormData(prev => ({
+          ...prev,
+          body: decodeURIComponent(body),
+          additional_notes: `Generated from multiple combined transcripts on ${new Date().toLocaleDateString()}`
+        }));
+      }
     }
   }, [searchParams]);
 
