@@ -1,16 +1,53 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
 import DashboardLayout from '../dashboard/layout';
 
-export default function RequestPage() {
+// Fallback data to prevent build-time API failures
+const FALLBACK_OUTLETS = {
+  "TechCrunch": {
+    "description": "Tech-focused, startup-friendly coverage",
+    "audience": "Developers, entrepreneurs, tech industry",
+    "icon": "⚡"
+  },
+  "The Verge": {
+    "description": "Consumer tech and digital lifestyle",
+    "audience": "Tech consumers, early adopters", 
+    "icon": "📱"
+  },
+  "Forbes": {
+    "description": "Business and financial perspective",
+    "audience": "Executives, investors, business leaders",
+    "icon": "💼"
+  },
+  "General": {
+    "description": "Broad appeal, standard format",
+    "audience": "General public, all media outlets",
+    "icon": "📰"
+  }
+};
+
+const FALLBACK_CATEGORIES = [
+  "Product Launch",
+  "Funding Round", 
+  "Acquisition",
+  "Partnership",
+  "Executive Appointment",
+  "Company Milestone",
+  "Event Announcement",
+  "Research & Development",
+  "Awards & Recognition",
+  "Other"
+];
+
+function RequestPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [outlets, setOutlets] = useState<Record<string, any>>({});
-  const [categories, setCategories] = useState<string[]>([]);
+  const [outlets, setOutlets] = useState<Record<string, any>>(FALLBACK_OUTLETS);
+  const [categories, setCategories] = useState<string[]>(FALLBACK_CATEGORIES);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PressReleaseResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -236,11 +273,16 @@ export default function RequestPage() {
           api.getOutlets(),
           api.getCategories()
         ]);
-        setOutlets(outletsData);
-        setCategories(categoriesData);
+        // Only update if we successfully got data
+        if (outletsData && Object.keys(outletsData).length > 0) {
+          setOutlets(outletsData);
+        }
+        if (categoriesData && categoriesData.length > 0) {
+          setCategories(categoriesData);
+        }
       } catch (err) {
-        setError('Failed to load configuration data');
-        console.error('API Error:', err);
+        // Silently continue with fallback data - no need to show error for this
+        console.log('Using fallback data, API not available:', err);
       }
     };
 
@@ -903,5 +945,20 @@ export default function RequestPage() {
         </div>
       </div>
     </DashboardLayout>
+  );
+}
+
+export default function RequestPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <RequestPageContent />
+    </Suspense>
   );
 } 
