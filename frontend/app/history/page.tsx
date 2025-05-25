@@ -28,6 +28,10 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRequest, setSelectedRequest] = useState<RequestHistory | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [requestToDelete, setRequestToDelete] = useState<RequestHistory | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const loadHistory = async () => {
@@ -45,6 +49,48 @@ export default function HistoryPage() {
 
     loadHistory();
   }, []);
+
+  const handleDeleteClick = (e: React.MouseEvent, request: RequestHistory) => {
+    e.stopPropagation(); // Prevent opening the request details
+    setRequestToDelete(request);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!requestToDelete) return;
+    
+    try {
+      setDeleting(true);
+      const result = await api.deleteRequest(requestToDelete.id);
+      
+      if (result.success) {
+        // Remove the deleted request from the list
+        setRequests(prev => prev.filter(req => req.id !== requestToDelete.id));
+        setDeleteModalOpen(false);
+        setRequestToDelete(null);
+        
+        // If we were viewing this request, go back to the list
+        if (selectedRequest?.id === requestToDelete.id) {
+          setSelectedRequest(null);
+        }
+        setSuccessMessage('Request deleted successfully');
+        // Auto-hide success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(result.message || 'Failed to delete request');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete request');
+      console.error('Delete error:', err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteModalOpen(false);
+    setRequestToDelete(null);
+  };
 
   if (loading) {
     return (
@@ -71,12 +117,20 @@ export default function HistoryPage() {
       <div className="max-w-4xl mx-auto mt-8 p-6">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Request Details</h2>
-          <button 
-            onClick={() => setSelectedRequest(null)}
-            className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-          >
-            ← Back to History
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={(e) => handleDeleteClick(e, selectedRequest)}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+            >
+              🗑️ Delete
+            </button>
+            <button 
+              onClick={() => setSelectedRequest(null)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              ← Back to History
+            </button>
+          </div>
         </div>
 
         <div className="bg-white rounded-xl shadow p-6 mb-6">
@@ -133,6 +187,38 @@ export default function HistoryPage() {
         </div>
       </div>
 
+      {/* Success Message */}
+      {successMessage && (
+        <div className="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg flex items-center justify-between">
+          <div className="flex items-center">
+            <span className="text-green-500 mr-2">✅</span>
+            <span>{successMessage}</span>
+          </div>
+          <button 
+            onClick={() => setSuccessMessage(null)}
+            className="text-green-700 hover:text-green-900"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg flex items-center justify-between">
+          <div className="flex items-center">
+            <span className="text-red-500 mr-2">⚠️</span>
+            <span>{error}</span>
+          </div>
+          <button 
+            onClick={() => setError(null)}
+            className="text-red-700 hover:text-red-900"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {requests.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-400 text-6xl mb-4">📝</div>
@@ -144,11 +230,13 @@ export default function HistoryPage() {
           {requests.map((request) => (
             <div 
               key={request.id} 
-              className="bg-white rounded-lg border hover:shadow-md transition-shadow cursor-pointer p-4"
-              onClick={() => setSelectedRequest(request)}
+              className="bg-white rounded-lg border hover:shadow-md transition-shadow p-4"
             >
               <div className="flex justify-between items-start">
-                <div className="flex-1">
+                <div 
+                  className="flex-1 cursor-pointer" 
+                  onClick={() => setSelectedRequest(request)}
+                >
                   <h3 className="font-semibold text-lg mb-1">{request.title}</h3>
                   <p className="text-gray-600 text-sm mb-2 line-clamp-2">{request.body}</p>
                   <div className="flex items-center space-x-4 text-sm text-gray-500">
@@ -158,14 +246,75 @@ export default function HistoryPage() {
                     <span>🗓️ {new Date(request.created_at).toLocaleDateString()}</span>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="flex items-center gap-3 ml-4">
                   <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
                     {request.responses.length} response{request.responses.length !== 1 ? 's' : ''}
                   </div>
+                  <button
+                    onClick={(e) => handleDeleteClick(e, request)}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Delete request"
+                  >
+                    🗑️
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl shadow-2xl max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="text-red-500 text-2xl">⚠️</div>
+              <h2 className="text-xl font-bold text-gray-900">Confirm Deletion</h2>
+            </div>
+            
+            {requestToDelete && (
+              <div className="mb-6">
+                <p className="text-gray-700 mb-3">
+                  Are you sure you want to delete this press release request?
+                </p>
+                <div className="bg-gray-50 p-3 rounded-lg border">
+                  <p className="font-semibold text-sm text-gray-900">{requestToDelete.title}</p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {requestToDelete.company_name} • {requestToDelete.category}
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {requestToDelete.responses.length} response{requestToDelete.responses.length !== 1 ? 's' : ''} will also be deleted
+                  </p>
+                </div>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    🗑️ Delete
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

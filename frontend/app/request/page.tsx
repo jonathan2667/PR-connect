@@ -16,6 +16,8 @@ export default function RequestPage() {
   const [speechText, setSpeechText] = useState('');
   const [speechSupported, setSpeechSupported] = useState(false);
   const [accumulatedSpeech, setAccumulatedSpeech] = useState('');
+  const [isRecognitionActive, setIsRecognitionActive] = useState(false);
+  const [restartTimeout, setRestartTimeout] = useState<NodeJS.Timeout | null>(null);
   const recognitionRef = useRef<any>(null);
 
   const [formData, setFormData] = useState<PressReleaseRequest>({
@@ -48,40 +50,138 @@ export default function RequestPage() {
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-              newFinalTranscript += transcript;
+              newFinalTranscript += transcript + ' ';
             } else {
               interimTranscript += transcript;
             }
           }
 
           // Add only NEW final results to accumulated speech
-          if (newFinalTranscript) {
-            setAccumulatedSpeech(prev => prev + newFinalTranscript);
+          if (newFinalTranscript.trim()) {
+            setAccumulatedSpeech(prev => {
+              const updated = prev + newFinalTranscript;
+              console.log('✅ Added final text:', newFinalTranscript.trim());
+              console.log('📝 Total accumulated:', updated.trim());
+              return updated;
+            });
           }
 
           // Update display: accumulated speech + current interim results
-          setSpeechText(prev => {
-            // Get current accumulated speech (without interim indicators)
-            const currentAccumulated = prev.includes('...') ? prev.split('...')[0] : prev;
-            const updatedAccumulated = newFinalTranscript ? currentAccumulated + newFinalTranscript : currentAccumulated;
-            return updatedAccumulated + (interimTranscript ? '...' + interimTranscript : '');
+          setSpeechText(() => {
+            return accumulatedSpeech + newFinalTranscript + (interimTranscript ? `[${interimTranscript}]` : '');
           });
         };
 
         recognition.onerror = (event: any) => {
           console.error('Speech recognition error:', event.error);
+          
+          // Handle different error types
+          if (event.error === 'aborted') {
+            console.log('🛑 Speech recognition aborted (normal when stopping)');
+            // This is expected when manually stopping recognition, don't treat as error
+            return;
+          }
+          
+          if (event.error === 'no-speech') {
+            console.log('👂 No speech detected, continuing to listen...');
+            // Don't show error for no-speech, just continue
+            return;
+          }
+          
+          if (event.error === 'audio-capture') {
+            setError('Microphone access denied. Please allow microphone access and try again.');
+            setIsListening(false);
+            setIsRecognitionActive(false);
+            return;
+          }
+          
+          if (event.error === 'network') {
+            console.log('🌐 Network error, attempting to restart...');
+            if (isRecognitionActive) {
+              restartRecognition();
+            }
+            return;
+          }
+          
+          if (event.error === 'not-allowed') {
+            setError('Microphone access is required for voice input. Please allow microphone access and refresh the page.');
+            setIsListening(false);
+            setIsRecognitionActive(false);
+            return;
+          }
+          
+          // Only show error for unexpected error types
+          console.log('❌ Unexpected speech recognition error:', event.error);
           setError('Speech recognition error: ' + event.error);
-          setIsListening(false);
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          console.log('🔄 Speech recognition ended');
+          
+          // Only restart if we're still supposed to be listening
+          if (isRecognitionActive && isListening) {
+            console.log('⏰ Auto-restarting recognition...');
+            
+            // Clear any existing restart timeout
+            if (restartTimeout) {
+              clearTimeout(restartTimeout);
+            }
+            
+            // Restart after a short delay to avoid rapid cycling
+            const timeout = setTimeout(() => {
+              if (isRecognitionActive && isListening) {
+                try {
+                  recognition.start();
+                  console.log('✅ Recognition restarted');
+                } catch (error) {
+                  console.log('⚠️ Failed to restart recognition:', error);
+                }
+              }
+            }, 100);
+            
+            setRestartTimeout(timeout);
+          } else {
+            console.log('⏹️ Recognition stopped - not restarting');
+            setIsListening(false);
+          }
         };
 
         recognitionRef.current = recognition;
       }
     }
-  }, []);
+  }, [isRecognitionActive, isListening, restartTimeout]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (restartTimeout) {
+        clearTimeout(restartTimeout);
+      }
+    };
+  }, [restartTimeout]);
+
+  // Sync speechText display with accumulated speech
+  useEffect(() => {
+    if (!isListening && accumulatedSpeech) {
+      setSpeechText(accumulatedSpeech);
+    }
+  }, [accumulatedSpeech, isListening]);
+
+  // Helper function to restart recognition
+  const restartRecognition = () => {
+    if (recognitionRef.current && isRecognitionActive) {
+      try {
+        recognitionRef.current.stop();
+        setTimeout(() => {
+          if (isRecognitionActive && recognitionRef.current) {
+            recognitionRef.current.start();
+          }
+        }, 200);
+      } catch (error) {
+        console.log('Error restarting recognition:', error);
+      }
+    }
+  };
 
   // Load outlets and categories on component mount
   useEffect(() => {
@@ -192,30 +292,62 @@ export default function RequestPage() {
 
   const startListening = () => {
     if (recognitionRef.current && speechSupported) {
+      console.log('🎯 Starting speech recognition...');
       setIsListening(true);
+      setIsRecognitionActive(true);
       setError(null);
       setSpeechText('');
       setAccumulatedSpeech('');
-      recognitionRef.current.start();
+      
+      // Clear any existing restart timeout
+      if (restartTimeout) {
+        clearTimeout(restartTimeout);
+        setRestartTimeout(null);
+      }
+      
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+        setError('Failed to start speech recognition. Please try again.');
+        setIsListening(false);
+        setIsRecognitionActive(false);
+      }
     }
   };
 
   const stopListening = () => {
+    console.log('⏹️ Stopping speech recognition...');
+    setIsRecognitionActive(false);
+    
+    // Clear any restart timeout
+    if (restartTimeout) {
+      clearTimeout(restartTimeout);
+      setRestartTimeout(null);
+    }
+    
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (error) {
+        console.log('Error stopping recognition:', error);
+      }
+      
       setIsListening(false);
-      // Automatically process speech when stopping
+      
+      // Process accumulated speech after stopping
       setTimeout(() => {
-        const finalText = accumulatedSpeech || speechText.split('...')[0] || speechText;
-        if (finalText.trim()) {
+        const finalText = accumulatedSpeech.trim();
+        if (finalText) {
+          console.log('🔍 Processing final text:', finalText);
           const parsedData = parseSpeechToFormData(finalText);
           setFormData(prev => ({
             ...prev,
             ...parsedData,
-            body: finalText.trim()
+            body: finalText
           }));
         }
-      }, 100); // Small delay to ensure final results are processed
+      }, 200);
     }
   };
 
@@ -401,41 +533,111 @@ export default function RequestPage() {
 
               <div className="text-center space-y-4">
                 <div className="bg-gray-50 rounded-xl p-8">
-                  <div className="mb-4">
+                  <div className="mb-6 flex flex-col items-center">
                     <button
                       type="button"
                       onClick={isListening ? stopListening : startListening}
-                      className={`w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold transition-all duration-200 transform hover:scale-105 ${isListening
-                        ? 'bg-red-500 text-white animate-pulse'
+                      className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold transition-all duration-300 transform hover:scale-105 ${isListening
+                        ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
                         : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:shadow-lg'
                         }`}
                     >
                       {isListening ? '⏹️' : '🎤'}
                     </button>
+                    
+                    {/* Status indicator */}
+                    <div className="mt-4 flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        isListening 
+                          ? 'bg-green-500 animate-pulse' 
+                          : 'bg-gray-300'
+                      }`}></div>
+                      <span className={`text-sm font-medium transition-colors duration-300 ${
+                        isListening ? 'text-green-600' : 'text-gray-500'
+                      }`}>
+                        {isListening ? 'Actively Listening' : 'Ready to Listen'}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-lg font-semibold text-gray-700 mb-2">
-                    {isListening ? 'Listening... Click to stop' : 'Click to start speaking'}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Describe your press release including company name, announcement details, and category
-                  </p>
+                  
+                  <div className="space-y-2">
+                    <p className="text-lg font-semibold text-gray-700">
+                      {isListening ? 'Speak naturally - pauses are okay!' : 'Click the microphone to start'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {isListening 
+                        ? 'Your speech will continue to be captured even during short pauses'
+                        : 'Describe your press release including company name, announcement details, and category'
+                      }
+                    </p>
+                  </div>
                 </div>
 
-                {speechText && (
-                  <div className="bg-white rounded-lg p-4 border border-gray-200">
-                    <h4 className="font-semibold text-gray-700 mb-2">Transcription:</h4>
-                    <p className="text-gray-800 text-sm">{speechText}</p>
+                {/* Enhanced transcription display */}
+                {(speechText || accumulatedSpeech) && (
+                  <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold text-gray-700 flex items-center gap-2">
+                        📝 Speech Transcription
+                        {isListening && (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            <span className="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></span>
+                            Live
+                          </span>
+                        )}
+                      </h4>
+                      <span className="text-sm text-gray-500">
+                        {speechText.length} characters
+                      </span>
+                    </div>
+                    
+                    <div className="bg-gray-50 rounded-lg p-4 max-h-48 overflow-y-auto">
+                      <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-wrap">
+                        {speechText || accumulatedSpeech || 'Start speaking to see transcription...'}
+                      </p>
+                    </div>
+                    
+                    {/* Word count and status */}
+                    <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                      <span>
+                        Words: {(speechText || accumulatedSpeech).split(' ').filter(word => word.length > 0).length}
+                      </span>
+                      <span>
+                        {isListening ? '🔴 Recording...' : '⏸️ Paused'}
+                      </span>
+                    </div>
                   </div>
                 )}
 
-                <div className="flex justify-center">
+                {/* Action buttons */}
+                <div className="flex justify-center gap-4">
                   <button
                     type="button"
                     onClick={resetForm}
-                    className="px-6 py-2 bg-gray-500 text-white rounded-lg font-semibold hover:bg-gray-600 transition-all duration-200"
+                    className="px-6 py-3 bg-gray-500 text-white rounded-xl font-semibold hover:bg-gray-600 transition-all duration-200 transform hover:scale-105"
                   >
-                    🔄 Reset
+                    🔄 Reset All
                   </button>
+                  
+                  {(speechText || accumulatedSpeech) && !isListening && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const finalText = accumulatedSpeech.trim() || speechText.trim();
+                        if (finalText) {
+                          const parsedData = parseSpeechToFormData(finalText);
+                          setFormData(prev => ({
+                            ...prev,
+                            ...parsedData,
+                            body: finalText
+                          }));
+                        }
+                      }}
+                      className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all duration-200 transform hover:scale-105"
+                    >
+                      ✨ Process Speech
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

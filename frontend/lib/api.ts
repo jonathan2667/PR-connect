@@ -135,6 +135,22 @@ export const api = {
     return result.success ? result.data : null;
   },
 
+  // Delete specific request
+  async deleteRequest(requestId: number): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
+    }
+
+    return response.json();
+  },
+
   // Initialize database (for setup)
   async initDatabase(): Promise<{ success: boolean; message: string }> {
     const response = await fetch(`${API_BASE_URL}/api/init-db`, {
