@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { api, authApi } from '../../lib/api';
+import { useRouter } from 'next/navigation';
+import DashboardLayout from './layout';
+import MarkdownContent from '../../components/MarkdownContent';
 
 interface ActivityItem {
   id: number;
@@ -615,9 +618,7 @@ export default function Dashboard() {
                           </div>
                           <div className="p-4">
                             <div className="prose max-w-none">
-                              <div className="whitespace-pre-wrap text-gray-800 leading-relaxed">
-                                {response.body}
-                              </div>
+                              <MarkdownContent content={response.body} />
                             </div>
                           </div>
                         </div>
