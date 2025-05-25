@@ -277,14 +277,24 @@ async def generate_press_releases(pr_request: PressReleaseRequest):
             print("⚠️ AGENT_ADDRESS not configured, skipping agent call")
             return True, "Agent not configured - generating content locally"
         
+        print(f"🔗 Attempting to connect to agent at: {AGENT_ADDRESS}")
+        print(f"📡 Sending message to AgentVerse...")
+        
         response = await send_sync_message(
             destination=AGENT_ADDRESS,
             message=pr_request,
             timeout=30
         )
+        
+        print(f"✅ Successfully received response from agent")
+        print(f"📦 Response type: {type(response)}")
         return True, response
+        
     except Exception as e:
         print(f"❌ Agent communication error: {str(e)}")
+        print(f"🔍 Error type: {type(e)}")
+        import traceback
+        print(f"📋 Full traceback: {traceback.format_exc()}")
         return True, f"Agent communication failed: {str(e)} - generating content locally"
 
 @app.route('/')
