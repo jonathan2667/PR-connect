@@ -51,7 +51,7 @@ class PressReleaseResponse(Model):
     status: str
 
 # Configuration - Update with your agent address
-AGENT_ADDRESS = os.environ.get('AGENT_ADRESS')
+AGENT_ADDRESS = os.environ.get('AGENT_ADDRESS')
 
 # Available outlets and categories (fallback for when DB is not available)
 AVAILABLE_OUTLETS = {
@@ -249,6 +249,11 @@ def run_async(coro):
 async def generate_press_releases(pr_request: PressReleaseRequest):
     """Send press release request to agent and get generated content"""
     try:
+        # Check if agent address is configured
+        if not AGENT_ADDRESS:
+            print("⚠️ AGENT_ADDRESS not configured, skipping agent call")
+            return True, "Agent not configured - generating content locally"
+        
         response = await send_sync_message(
             destination=AGENT_ADDRESS,
             message=pr_request,
@@ -256,7 +261,8 @@ async def generate_press_releases(pr_request: PressReleaseRequest):
         )
         return True, response
     except Exception as e:
-        return False, str(e)
+        print(f"❌ Agent communication error: {str(e)}")
+        return True, f"Agent communication failed: {str(e)} - generating content locally"
 
 @app.route('/')
 def home():
@@ -310,7 +316,12 @@ def generate_press_release():
             sample_releases = []
             db_requests = []  # Store database request objects
             
-            for outlet_name in pr_request.target_outlets:
+            # Ensure target_outlets is not None and has data
+            target_outlets = pr_request.target_outlets or ['General']
+            if not target_outlets:
+                target_outlets = ['General']
+            
+            for outlet_name in target_outlets:
                 # Find or create outlet in database
                 try:
                     outlet = NewsOutlet.query.filter_by(name=outlet_name).first()
@@ -321,13 +332,13 @@ def generate_press_release():
                     
                     # Create request record in database
                     db_request = Request(
-                        title=pr_request.title,
-                        body=pr_request.body,
+                        title=pr_request.title or 'Untitled Press Release',
+                        body=pr_request.body or 'No content provided',
                         news_outlet_id=outlet.id,
-                        company_name=pr_request.company_name,
-                        category=pr_request.category,
-                        contact_info=pr_request.contact_info,
-                        additional_notes=pr_request.additional_notes
+                        company_name=pr_request.company_name or 'Unknown Company',
+                        category=pr_request.category or 'Company Milestone',
+                        contact_info=pr_request.contact_info or '',
+                        additional_notes=pr_request.additional_notes or ''
                     )
                     db.session.add(db_request)
                     db.session.flush()  # Get the ID
@@ -339,7 +350,13 @@ def generate_press_release():
                     pass
                 
                 # Generate content based on outlet style (same as agent logic)
-                content = generate_content_for_outlet(pr_request, outlet_name)
+                try:
+                    content = generate_content_for_outlet(pr_request, outlet_name)
+                    if not content:
+                        content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
+                except Exception as content_error:
+                    print(f"⚠️ Content generation error for {outlet_name}: {content_error}")
+                    content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
                 
                 tone_map = {
                     "TechCrunch": "Direct, tech-focused, startup-friendly",
@@ -349,7 +366,7 @@ def generate_press_release():
                 }
                 
                 tone = tone_map.get(outlet_name, "Balanced, broad appeal")
-                word_count = len(content.split())
+                word_count = len(content.split()) if content else 0
                 
                 # Store response in database
                 try:
@@ -421,38 +438,47 @@ def generate_press_release():
 
 def generate_content_for_outlet(pr_request: PressReleaseRequest, outlet: str) -> str:
     """Generate content based on outlet style"""
+    
+    # Safety checks for None values
+    title = pr_request.title or f"Press Release from {pr_request.company_name or 'Company'}"
+    company_name = pr_request.company_name or "Company"
+    body = pr_request.body or "No content provided"
+    category = pr_request.category or "Company Milestone"
+    additional_notes = pr_request.additional_notes or ""
+    contact_info = pr_request.contact_info or ""
+    
     if outlet == "TechCrunch":
-        return f"""**{pr_request.title}**
+        return f"""**{title}**
 
-{pr_request.company_name} today announced {pr_request.body.lower()}
+{company_name} today announced {body.lower()}
 
 **Key Highlights:**
 • Innovation-driven approach to market disruption
 • Technology-first solution addressing key industry challenges  
 • Positioned for rapid scaling and market adoption
 
-**About the {pr_request.category}:**
-This development represents a significant milestone in {pr_request.company_name}'s growth trajectory, demonstrating the company's commitment to pushing technological boundaries and delivering value to users.
+**About the {category}:**
+This development represents a significant milestone in {company_name}'s growth trajectory, demonstrating the company's commitment to pushing technological boundaries and delivering value to users.
 
 **Market Impact:**
-The announcement is expected to strengthen {pr_request.company_name}'s position in the competitive landscape, potentially influencing industry standards and user expectations.
+The announcement is expected to strengthen {company_name}'s position in the competitive landscape, potentially influencing industry standards and user expectations.
 
 **Additional Information:**
-{pr_request.additional_notes if pr_request.additional_notes else 'Further details will be available through official company channels.'}
+{additional_notes if additional_notes else 'Further details will be available through official company channels.'}
 
 **Contact:**
-{pr_request.contact_info if pr_request.contact_info else 'Media inquiries welcome through standard channels.'}
+{contact_info if contact_info else 'Media inquiries welcome through standard channels.'}
 
 *This release was optimized for TechCrunch's tech-focused, startup-friendly editorial style.*"""
 
     elif outlet == "The Verge":
-        return f"""# {pr_request.title}
+        return f"""# {title}
 
-{pr_request.company_name} is making waves with {pr_request.body.lower()}
+{company_name} is making waves with {body.lower()}
 
 ## What This Means for Users
 
-This {pr_request.category.lower()} represents more than just another corporate announcement — it's about how technology continues to reshape our daily experiences and interactions.
+This {category.lower()} represents more than just another corporate announcement — it's about how technology continues to reshape our daily experiences and interactions.
 
 ## The Consumer Angle
 
@@ -463,30 +489,30 @@ For everyday users, this development translates to:
 
 ## Company Perspective
 
-"{pr_request.body}" said representatives from {pr_request.company_name}, emphasizing the consumer-first approach that drives their innovation strategy.
+"{body}" said representatives from {company_name}, emphasizing the consumer-first approach that drives their innovation strategy.
 
 ## Looking Forward
 
-This announcement positions {pr_request.company_name} at the intersection of technology and user experience, areas where The Verge's audience expects cutting-edge developments.
+This announcement positions {company_name} at the intersection of technology and user experience, areas where The Verge's audience expects cutting-edge developments.
 
 ## Additional Context
-{pr_request.additional_notes if pr_request.additional_notes else 'More details expected as the story develops.'}
+{additional_notes if additional_notes else 'More details expected as the story develops.'}
 
-**Media Contact:** {pr_request.contact_info if pr_request.contact_info else 'Available upon request'}
+**Media Contact:** {contact_info if contact_info else 'Available upon request'}
 
 *Styled for The Verge's consumer-tech focus and engaging narrative approach.*"""
 
     elif outlet == "Forbes":
-        return f"""**{pr_request.title}**
-*Strategic {pr_request.category} Positions Company for Market Leadership*
+        return f"""**{title}**
+*Strategic {category} Positions Company for Market Leadership*
 
 **Executive Summary**
 
-{pr_request.company_name} today announced {pr_request.body}, a strategic move that underscores the company's commitment to market expansion and shareholder value creation.
+{company_name} today announced {body}, a strategic move that underscores the company's commitment to market expansion and shareholder value creation.
 
 **Business Impact Analysis**
 
-This {pr_request.category.lower()} represents a calculated investment in:
+This {category.lower()} represents a calculated investment in:
 - Market position strengthening
 - Operational efficiency improvements  
 - Long-term value creation for stakeholders
@@ -494,11 +520,11 @@ This {pr_request.category.lower()} represents a calculated investment in:
 
 **Market Dynamics**
 
-The timing of this announcement reflects {pr_request.company_name}'s strategic response to evolving market conditions and positions the company to capitalize on emerging opportunities in their sector.
+The timing of this announcement reflects {company_name}'s strategic response to evolving market conditions and positions the company to capitalize on emerging opportunities in their sector.
 
 **Financial Implications**
 
-Industry analysts expect this {pr_request.category.lower()} to contribute positively to the company's growth trajectory, potentially impacting:
+Industry analysts expect this {category.lower()} to contribute positively to the company's growth trajectory, potentially impacting:
 - Revenue generation capabilities
 - Market share expansion
 - Operational scalability
@@ -506,46 +532,46 @@ Industry analysts expect this {pr_request.category.lower()} to contribute positi
 
 **Leadership Commentary**
 
-The {pr_request.category.lower()} aligns with {pr_request.company_name}'s broader strategic vision and demonstrates executive leadership's commitment to sustainable growth and market innovation.
+The {category.lower()} aligns with {company_name}'s broader strategic vision and demonstrates executive leadership's commitment to sustainable growth and market innovation.
 
 **Additional Strategic Context**
-{pr_request.additional_notes if pr_request.additional_notes else 'Further strategic details to be disclosed in upcoming investor communications.'}
+{additional_notes if additional_notes else 'Further strategic details to be disclosed in upcoming investor communications.'}
 
-**Investor Relations Contact:** {pr_request.contact_info if pr_request.contact_info else 'Available through official investor relations channels'}
+**Investor Relations Contact:** {contact_info if contact_info else 'Available through official investor relations channels'}
 
 *Formatted for Forbes' business-executive audience with focus on market impact and financial implications.*"""
 
     else:  # General
         return f"""FOR IMMEDIATE RELEASE
 
-**{pr_request.title}**
+**{title}**
 
-{pr_request.company_name} Announces {pr_request.category}
+{company_name} Announces {category}
 
-**[City, Date]** – {pr_request.company_name} today announced {pr_request.body}
+**[City, Date]** – {company_name} today announced {body}
 
-**About This {pr_request.category}:**
+**About This {category}:**
 
-This development represents an important milestone for {pr_request.company_name} and demonstrates the organization's ongoing commitment to innovation and growth.
+This development represents an important milestone for {company_name} and demonstrates the organization's ongoing commitment to innovation and growth.
 
 **Key Details:**
 
-• **What:** {pr_request.category} by {pr_request.company_name}
+• **What:** {category} by {company_name}
 • **Impact:** Enhanced capabilities and market position
 • **Timeline:** Effective immediately
 • **Scope:** Company-wide initiative
 
 **Company Background:**
 
-{pr_request.company_name} continues to build on its foundation of innovation and customer service, with this {pr_request.category.lower()} marking another step in the company's strategic evolution.
+{company_name} continues to build on its foundation of innovation and customer service, with this {category.lower()} marking another step in the company's strategic evolution.
 
 **Additional Information:**
-{pr_request.additional_notes if pr_request.additional_notes else 'Additional details available upon request.'}
+{additional_notes if additional_notes else 'Additional details available upon request.'}
 
 **Media Contact:**
-{pr_request.contact_info if pr_request.contact_info else 'Media inquiries welcome'}
+{contact_info if contact_info else 'Media inquiries welcome'}
 
-**About {pr_request.company_name}:**
+**About {company_name}:**
 [Standard company boilerplate would appear here]
 
 ###
