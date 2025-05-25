@@ -99,13 +99,13 @@ export default function Dashboard() {
       const token = localStorage.getItem('authToken');
       
       const [usersRes, requestsRes, statsRes] = await Promise.all([
-        fetch('https://pr-connect.onrender.com/api/admin/users', {
+        fetch('https://pr-connect-r40k.onrender.com/api/admin/users', {
           headers: { 'Authorization': `Bearer ${token}` },
         }).then(res => res.json()),
-        fetch('https://pr-connect.onrender.com/api/admin/requests', {
+        fetch('https://pr-connect-r40k.onrender.com/api/admin/requests', {
           headers: { 'Authorization': `Bearer ${token}` },
         }).then(res => res.json()),
-        fetch('https://pr-connect.onrender.com/api/admin/stats', {
+        fetch('https://pr-connect-r40k.onrender.com/api/admin/stats', {
           headers: { 'Authorization': `Bearer ${token}` },
         }).then(res => res.json())
       ]);
@@ -125,7 +125,7 @@ export default function Dashboard() {
       setLoadingDetails(true);
       const token = localStorage.getItem('authToken');
       
-      const response = await fetch(`https://pr-connect.onrender.com/api/requests/${requestId}`, {
+      const response = await fetch(`https://pr-connect-r40k.onrender.com/api/requests/${requestId}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       

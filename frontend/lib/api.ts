@@ -23,7 +23,7 @@ const getApiBaseUrl = () => {
     
     // Production fallback
     console.log('🌐 Using production fallback');
-    return 'https://pr-connect.onrender.com';
+    return 'https://pr-connect-r40k.onrender.com';
   }
   
   // Server-side fallback
