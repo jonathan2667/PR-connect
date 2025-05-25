@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
 import DashboardLayout from '../dashboard/layout';
+export const dynamic = "force-dynamic";
 
 export default function RequestPage() {
   const router = useRouter();
