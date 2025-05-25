@@ -749,7 +749,7 @@ def get_outlets():
     except Exception as e:
         print(f"⚠️ Database error loading outlets: {e}")
         # Fallback to static data
-        return jsonify(AVAILABLE_OUTLETS)
+    return jsonify(AVAILABLE_OUTLETS)
 
 @app.route('/api/categories') 
 def get_categories():

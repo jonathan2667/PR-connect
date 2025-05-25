@@ -31,7 +31,11 @@ class PressReleaseResponse(Model):
     timestamp: str
     status: str
 
-agent = Agent()
+# Instantiate agent with consistent seed to get same address every time
+agent = Agent(
+    name="press_release_agent",
+    seed="press-release-seed-phrase"
+)
 
 # Outlet-specific templates and styles
 OUTLET_STYLES = {
