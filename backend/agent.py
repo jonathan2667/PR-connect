@@ -6,7 +6,7 @@ Handles client requests and generates tailored press releases for different medi
 from uagents import Agent, Context, Model
 from typing import List, Optional
 from datetime import datetime
-import requests
+from openai import OpenAI
 import json
 import os
 
@@ -43,54 +43,66 @@ agent = Agent(
 # Get DeepSeek API key from environment
 API_KEY_DS = os.getenv('API_KEY_DS')
 
+# Initialize OpenAI client for OpenRouter
+client = None
+if API_KEY_DS:
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=API_KEY_DS,
+    )
+
 # Outlet-specific styles and instructions for AI
 OUTLET_STYLES = {
     "TechCrunch": {
         "tone": "Direct, tech-focused, startup-friendly",
         "style": "Bold headlines, focus on innovation and market disruption",
-        "instructions": "Write in TechCrunch style: tech-focused, startup-friendly, emphasize innovation and market disruption. Use bold headings and bullet points. Target 300-500 words."
+        "instructions": "Write a professional press release in TechCrunch style: tech-focused, startup-friendly, emphasize innovation and market disruption. Use markdown formatting with bold headings (##) and bullet points. Target 300-500 words. Focus on technical achievements and business impact."
     },
     "The Verge": {
         "tone": "Consumer-focused, accessible tech coverage",
         "style": "Engaging, lifestyle-oriented tech angle",
-        "instructions": "Write in The Verge style: consumer-focused, accessible tech coverage with engaging narrative. Focus on human aspects of technology. Target 400-600 words."
+        "instructions": "Write a professional press release in The Verge style: consumer-focused, accessible tech coverage with engaging narrative. Use markdown formatting with clear headings (##) and focus on human aspects of technology. Target 400-600 words. Make it engaging and relatable."
     },
     "Forbes": {
         "tone": "Business-focused, executive perspective",
         "style": "Professional, market impact, financial implications",
-        "instructions": "Write in Forbes style: business-focused, executive perspective, emphasize market impact and financial implications. Professional tone for business leaders. Target 500-800 words."
+        "instructions": "Write a professional press release in Forbes style: business-focused, executive perspective, emphasize market impact and financial implications. Use markdown formatting with professional headings (##). Target 500-800 words. Focus on business strategy and market positioning."
     },
     "General": {
         "tone": "Balanced, broad appeal",
         "style": "Standard press release format, accessible to all audiences",
-        "instructions": "Write in standard press release format: balanced tone, broad appeal, accessible to all audiences. Follow traditional PR structure. Target 400-600 words."
+        "instructions": "Write a professional press release in standard format: balanced tone, broad appeal, accessible to all audiences. Use markdown formatting with clear headings (##) and bullet points. Follow traditional PR structure with headline, dateline, body paragraphs, and contact info. Target 400-600 words."
     },
     "Adevarul": {
         "tone": "Romanian news perspective, factual reporting",
         "style": "Straightforward news reporting, local angle",
-        "instructions": "Write in Romanian news style: factual reporting, straightforward news format with local perspective. Objective and informative. Target 300-500 words."
+        "instructions": "Write a professional press release in Romanian news style: factual reporting, straightforward news format with local perspective. Use markdown formatting with clear headings (##). Target 300-500 words. Objective and informative tone."
     },
     "CNN": {
         "tone": "News-focused, broad appeal",
         "style": "Breaking news format, impact-focused",
-        "instructions": "Write in CNN news style: breaking news format, broad appeal, focus on impact and implications. Clear, authoritative reporting tone. Target 400-600 words."
+        "instructions": "Write a professional press release in CNN news style: breaking news format, broad appeal, focus on impact and implications. Use markdown formatting with bold headings (##). Target 400-600 words. Clear, authoritative reporting tone."
     }
 }
 
 async def generate_ai_press_release(request: PressReleaseRequest, outlet: str, ctx: Context) -> GeneratedPressRelease:
-    """Generate press release using DeepSeek AI via OpenRouter"""
+    """Generate press release using DeepSeek AI via OpenRouter with OpenAI client"""
+    
+    if not client:
+        ctx.logger.error("❌ OpenAI client not initialized - API key missing")
+        return create_fallback_release(request, outlet)
     
     outlet_info = OUTLET_STYLES.get(outlet, OUTLET_STYLES["General"])
     
     # Create the prompt for DeepSeek with strict JSON-only response requirements
     prompt = f"""You are a professional press release writer. Generate content for {outlet} based on the following information:
 
-Company: {request.company_name}
-Title: {request.title}
-Category: {request.category}
-Content: {request.body}
-Contact Info: {request.contact_info}
-Additional Notes: {request.additional_notes}
+COMPANY: {request.company_name}
+TITLE: {request.title}
+CATEGORY: {request.category}
+CONTENT: {request.body}
+CONTACT: {request.contact_info}
+NOTES: {request.additional_notes}
 
 Writing Style: {outlet_info['instructions']}
 
@@ -110,12 +122,10 @@ Required JSON structure:
 Start your response immediately with the opening curly brace {{"""
 
     try:
-        # Call OpenRouter API with DeepSeek model
-        response = requests.post(
-            url="https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {API_KEY_DS}",
-                "Content-Type": "application/json",
+        ctx.logger.info(f"🤖 Calling DeepSeek AI for {outlet}...")
+        
+        completion = client.chat.completions.create(
+            extra_headers={
                 "HTTP-Referer": "https://pr-connect-r40k.onrender.com",
                 "X-Title": "PR-Connect",
             },
@@ -227,54 +237,53 @@ Start your response immediately with the opening curly brace {{"""
             return GeneratedPressRelease(
                 outlet=outlet,
                 content=content,
-                tone=tone,
+                tone=outlet_info['tone'],
                 word_count=word_count
             )
         else:
-            ctx.logger.error(f"❌ OpenRouter API error for {outlet}: {response.status_code}")
-            # Fallback content
-            fallback_content = f"""# {request.title}
-
-{request.company_name} announces {request.category.lower()}.
-
-## Details
-
-{request.body}
-
-**Contact Information:**
-{request.contact_info if request.contact_info else f'For more information, contact {request.company_name}'}
-
-*Generated content - API temporarily unavailable*"""
-            
-            return GeneratedPressRelease(
-                outlet=outlet,
-                content=fallback_content,
-                tone=outlet_info['tone'],
-                word_count=len(fallback_content.split())
-            )
+            ctx.logger.error(f"❌ Empty response from AI for {outlet}")
+            return create_fallback_release(request, outlet)
             
     except Exception as e:
-        ctx.logger.error(f"❌ Error generating content for {outlet}: {str(e)}")
-        # Fallback content
-        fallback_content = f"""# {request.title}
+        ctx.logger.error(f"❌ Error calling AI for {outlet}: {str(e)}")
+        return create_fallback_release(request, outlet)
 
-{request.company_name} announces {request.category.lower()}.
+def create_fallback_release(request: PressReleaseRequest, outlet: str) -> GeneratedPressRelease:
+    """Create fallback content when AI fails"""
+    outlet_info = OUTLET_STYLES.get(outlet, OUTLET_STYLES["General"])
+    
+    fallback_content = f"""# {request.title}
 
-## Details
+**{request.company_name}** announces {request.category.lower()}.
+
+## Overview
 
 {request.body}
 
-**Contact Information:**
-{request.contact_info if request.contact_info else f'For more information, contact {request.company_name}'}
+## Key Highlights
 
-*Generated content - Error occurred during AI generation*"""
-        
-        return GeneratedPressRelease(
-            outlet=outlet,
-            content=fallback_content,
-            tone=outlet_info['tone'],
-            word_count=len(fallback_content.split())
-        )
+- Innovative approach to industry challenges
+- Strategic positioning for market growth
+- Commitment to excellence and quality delivery
+
+## About {request.company_name}
+
+{request.company_name} continues to focus on innovation and excellence, delivering value to customers and stakeholders.
+
+## Contact Information
+
+**Contact:** {request.contact_info if request.contact_info else f'For more information, contact {request.company_name}'}
+
+{f"**Additional Notes:** {request.additional_notes}" if request.additional_notes else ""}
+
+*This press release was generated for {outlet} - {outlet_info['tone']}*"""
+    
+    return GeneratedPressRelease(
+        outlet=outlet,
+        content=fallback_content,
+        tone=outlet_info['tone'],
+        word_count=len(fallback_content.split())
+    )
 
 @agent.on_event("startup")
 async def startup_message(ctx: Context):
