@@ -519,9 +519,9 @@ def generate_press_release():
         
         # Fallback to local generation if agent fails or is not configured
         print(f"⚠️ Using local generation (Agent available: {bool(AGENT_ADDRESS)}, Success: {success})")
-            
-            # Generate content locally using the same logic as the agent
-            sample_releases = []
+        
+        # Generate content locally using the same logic as the agent
+        sample_releases = []
         db_requests = []  # Store database request objects
         
         # Ensure target_outlets is not None and has data
@@ -558,7 +558,7 @@ def generate_press_release():
                 # Continue without database storage for this outlet
                 pass
             
-                # Generate content based on outlet style (same as agent logic)
+            # Generate content based on outlet style (same as agent logic)
             try:
                 content = generate_content_for_outlet(pr_request, outlet_name)
                 if not content:
@@ -655,7 +655,7 @@ def generate_content_for_outlet(pr_request: PressReleaseRequest, outlet: str) ->
     additional_notes = pr_request.additional_notes or ""
     contact_info = pr_request.contact_info or ""
     
-                if outlet == "TechCrunch":
+    if outlet == "TechCrunch":
         return f"""**{title}**
 
 {company_name} today announced {body.lower()}
@@ -679,7 +679,7 @@ The announcement is expected to strengthen {company_name}'s position in the comp
 
 *This release was optimized for TechCrunch's tech-focused, startup-friendly editorial style.*"""
 
-                elif outlet == "The Verge":
+    elif outlet == "The Verge":
         return f"""# {title}
 
 {company_name} is making waves with {body.lower()}
@@ -710,7 +710,7 @@ This announcement positions {company_name} at the intersection of technology and
 
 *Styled for The Verge's consumer-tech focus and engaging narrative approach.*"""
 
-                elif outlet == "Forbes":
+    elif outlet == "Forbes":
         return f"""**{title}**
 *Strategic {category} Positions Company for Market Leadership*
 
@@ -749,7 +749,7 @@ The {category.lower()} aligns with {company_name}'s broader strategic vision and
 
 *Formatted for Forbes' business-executive audience with focus on market impact and financial implications.*"""
 
-                else:  # General
+    else:  # General
         return f"""FOR IMMEDIATE RELEASE
 
 **{title}**
@@ -1031,8 +1031,8 @@ def register_user():
         
         print(f"👤 New user registered: {user.email} ({user.company_name})")
             
-            return jsonify({
-                "success": True,
+        return jsonify({
+            "success": True,
             "data": {
                 "user": user.to_dict(),
                 "token": token
