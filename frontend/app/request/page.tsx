@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import MarkdownContent from '../../components/MarkdownContent';
+import { api, GeneratedPressRelease, PressReleaseRequest, PressReleaseResponse } from '../../lib/api';
 import DashboardLayout from '../dashboard/layout';
 
 // Fallback data to prevent build-time API failures
@@ -41,6 +42,14 @@ const FALLBACK_CATEGORIES = [
   "Awards & Recognition",
   "Other"
 ];
+
+const styles = {
+  pressReleaseCard: "bg-white rounded-xl shadow-lg mb-6 overflow-hidden transition-all duration-200 hover:transform hover:-translate-y-1 hover:shadow-xl",
+  pressReleaseHeader: "bg-gradient-to-r from-gray-50 to-gray-100 p-6 border-b border-gray-200",
+  pressReleaseContent: "p-6",
+  wordCount: "bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold",
+  toneBadge: "bg-gray-500 text-white px-3 py-1 rounded-full text-sm font-semibold ml-2"
+};
 
 function RequestPageContent() {
   const router = useRouter();
@@ -525,34 +534,21 @@ function RequestPageContent() {
                 </button>
               </div>
 
-              <div className="grid gap-6">
-                {result.generated_releases.map((release: GeneratedPressRelease, index: number) => (
-                  <div
-                    key={index}
-                    className="group bg-white rounded-xl border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden"
-                    style={{ animationDelay: `${index * 150}ms` }}
-                  >
-                    <div className="p-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                            {release.outlet.charAt(0)}
-                          </div>
-                          <div>
-                            <h3 className="text-xl font-bold text-gray-900">{release.outlet}</h3>
-                            <p className="text-sm text-gray-500">{release.tone}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full">
-                          <span className="text-sm font-medium text-gray-700">{release.word_count} words</span>
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <div className="results-section">
+                <h2 className="mb-4">Generated Press Releases</h2>
+                {result.generated_releases.map((release, index) => (
+                  <div key={index} className={styles.pressReleaseCard}>
+                    <div className={styles.pressReleaseHeader}>
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-xl font-bold text-gray-900">{release.outlet}</h3>
+                        <div className="flex items-center">
+                          <span className={styles.wordCount}>{release.word_count} words</span>
+                          <span className={styles.toneBadge}>{release.tone}</span>
                         </div>
                       </div>
-                      <div className="bg-gray-50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                        <pre className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed font-mono">
-                          {release.content}
-                        </pre>
-                      </div>
+                    </div>
+                    <div className={styles.pressReleaseContent}>
+                      <MarkdownContent content={release.content} />
                     </div>
                   </div>
                 ))}

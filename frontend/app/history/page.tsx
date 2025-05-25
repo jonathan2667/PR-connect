@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import DashboardLayout from '../dashboard/layout';
+import MarkdownContent from '../../components/MarkdownContent';
 
 interface RequestHistory {
   id: number;
@@ -193,9 +194,7 @@ function HistoryContent() {
                     </div>
                   </div>
                   <div className="bg-gray-50 rounded-lg p-4 max-h-80 overflow-y-auto">
-                    <pre className="whitespace-pre-wrap text-sm text-gray-800 leading-relaxed font-mono">
-                      {response.body}
-                    </pre>
+                    <MarkdownContent content={response.body} />
                   </div>
                 </div>
               ))}
