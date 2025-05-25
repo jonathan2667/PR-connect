@@ -158,6 +158,7 @@ def check_and_update_table_structure(database_url, verbose=True):
             required_user_columns = [
                 ("phone", "VARCHAR(20)"),
                 ("location", "VARCHAR(100)"),
+                ("is_admin", "BOOLEAN DEFAULT FALSE"),
                 ("is_active", "BOOLEAN DEFAULT TRUE"),
                 ("updated_at", "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
             ]
