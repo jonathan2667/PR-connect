@@ -155,11 +155,10 @@ Start your response immediately with the opening curly brace {{"""
             url="https://openrouter.ai/api/v1/chat/completions",
             headers={
                 "Authorization": f"Bearer {API_KEY_DS}",
-                "Content-Type": "application/json",
                 "HTTP-Referer": "https://pr-connect-r40k.onrender.com",
                 "X-Title": "PR-Connect",
             },
-            data=json.dumps(request_data)
+            json=request_data  # Use json= instead of data=json.dumps() to set Content-Type automatically
         )
         
         ctx.logger.info(f"📊 API Response Status: {response.status_code}")
