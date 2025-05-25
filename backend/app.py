@@ -1354,6 +1354,310 @@ def get_dashboard_stats():
             "message": f"Error loading dashboard stats: {str(e)}"
         }), 500
 
+# Admin functionality
+def require_admin(f):
+    """Decorator to require admin authentication"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # First check if user is authenticated
+        token = None
+        auth_header = request.headers.get('Authorization')
+        
+        if auth_header:
+            try:
+                token = auth_header.split(" ")[1]  # Bearer <token>
+            except IndexError:
+                pass
+        
+        if not token:
+            return jsonify({'message': 'Authentication token required'}), 401
+        
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'message': 'Invalid or expired token'}), 401
+        
+        # Check if user is admin
+        user = User.query.get(payload['user_id'])
+        if not user or not getattr(user, 'is_admin', False):
+            return jsonify({'message': 'Admin access required'}), 403
+        
+        request.current_user = payload
+        return f(*args, **kwargs)
+    
+    return decorated_function
+
+@app.route('/api/admin/create', methods=['POST'])
+def create_admin():
+    """Create admin user - public endpoint for initial setup"""
+    try:
+        # Check if admin already exists
+        existing_admin = User.query.filter_by(email='admin@admin.com').first()
+        if existing_admin:
+            # Update existing user to be admin
+            existing_admin.is_admin = True
+            db.session.commit()
+            return jsonify({
+                "success": True,
+                "message": "Existing user updated to admin",
+                "data": {
+                    "email": "admin@admin.com"
+                }
+            })
+        
+        # Create admin user
+        admin_user = User(
+            full_name='System Administrator',
+            email='admin@admin.com',
+            company_name='PR-Connect Admin',
+            is_admin=True
+        )
+        admin_user.set_password('admin')
+        
+        db.session.add(admin_user)
+        db.session.commit()
+        
+        print("👑 Admin user created successfully")
+        
+        return jsonify({
+            "success": True,
+            "message": "Admin user created successfully",
+            "data": {
+                "email": "admin@admin.com",
+                "password": "admin"
+            }
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Admin creation error: {e}")
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": f"Error creating admin: {str(e)}"
+        }), 500
+
+@app.route('/api/admin/requests', methods=['GET'])
+@require_admin  
+def admin_get_all_requests():
+    """Get all requests from all users with newspaper history - Admin only"""
+    try:
+        # Query all requests with related data
+        requests = Request.query.options(
+            db.joinedload(Request.user),
+            db.joinedload(Request.news_outlet),
+            db.joinedload(Request.responses)
+        ).order_by(Request.created_at.desc()).all()
+        
+        requests_data = []
+        for req in requests:
+            request_data = req.to_dict()
+            # Add response count
+            request_data['response_count'] = len(req.responses)
+            # Add responses data
+            request_data['responses'] = [resp.to_dict() for resp in req.responses]
+            # Add newspaper/outlet info
+            request_data['newspaper'] = req.news_outlet.name if req.news_outlet else 'Unknown'
+            request_data['outlet_info'] = req.news_outlet.to_dict() if req.news_outlet else None
+            requests_data.append(request_data)
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "requests": requests_data,
+                "total": len(requests_data)
+            }
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Admin requests list error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading requests: {str(e)}"
+        }), 500
+
+@app.route('/api/admin/users', methods=['GET'])
+@require_admin
+def admin_get_users():
+    """Get all users with their newspaper usage - Admin only"""
+    try:
+        users = User.query.all()
+        users_data = []
+        
+        for user in users:
+            user_data = user.to_dict()
+            # Add stats
+            user_requests = Request.query.filter_by(user_id=user.id).all()
+            user_data['total_requests'] = len(user_requests)
+            user_data['total_transcripts'] = Transcript.query.filter_by(user_id=user.id).count()
+            
+            # Get newspaper usage for this user
+            newspaper_usage = {}
+            for req in user_requests:
+                if req.news_outlet:
+                    outlet_name = req.news_outlet.name
+                    if outlet_name in newspaper_usage:
+                        newspaper_usage[outlet_name] += 1
+                    else:
+                        newspaper_usage[outlet_name] = 1
+            
+            user_data['newspaper_usage'] = newspaper_usage
+            user_data['newspapers_used'] = list(newspaper_usage.keys())
+            users_data.append(user_data)
+        
+        return jsonify({
+            "success": True,
+            "data": users_data
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Admin users list error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading users: {str(e)}"
+        }), 500
+
+@app.route('/api/admin/stats', methods=['GET'])
+@require_admin
+def admin_get_stats():
+    """Get overall platform statistics with newspaper analytics - Admin only"""
+    try:
+        # Get counts
+        total_users = User.query.count()
+        total_requests = Request.query.count()
+        total_responses = Response.query.count()
+        total_transcripts = Transcript.query.count()
+        
+        # Get outlet usage stats (newspaper analytics)
+        outlet_stats = db.session.query(
+            NewsOutlet.name,
+            db.func.count(Request.id).label('count')
+        ).join(Request).group_by(NewsOutlet.name).all()
+        
+        # Get category stats
+        category_stats = db.session.query(
+            Request.category,
+            db.func.count(Request.id).label('count')
+        ).filter(Request.category.isnot(None)).group_by(Request.category).all()
+        
+        # Get recent activity (last 20 requests across all users)
+        recent_requests = Request.query.options(
+            db.joinedload(Request.user),
+            db.joinedload(Request.news_outlet)
+        ).order_by(Request.created_at.desc()).limit(20).all()
+        
+        recent_activity = []
+        for req in recent_requests:
+            recent_activity.append({
+                'id': req.id,
+                'title': req.title,
+                'user_name': req.user.full_name if req.user else 'Unknown',
+                'user_email': req.user.email if req.user else 'Unknown',
+                'company': req.company_name,
+                'newspaper': req.news_outlet.name if req.news_outlet else 'Unknown',
+                'outlet': req.news_outlet.name if req.news_outlet else 'Unknown',
+                'category': req.category,
+                'created_at': req.created_at.isoformat() if req.created_at else None
+            })
+        
+        # Get user stats with newspaper breakdown
+        user_newspaper_stats = []
+        users = User.query.all()
+        for user in users:
+            user_requests = Request.query.filter_by(user_id=user.id).all()
+            newspaper_breakdown = {}
+            for req in user_requests:
+                if req.news_outlet:
+                    outlet_name = req.news_outlet.name
+                    newspaper_breakdown[outlet_name] = newspaper_breakdown.get(outlet_name, 0) + 1
+            
+            if user_requests:  # Only include users who have made requests
+                user_newspaper_stats.append({
+                    'user_name': user.full_name,
+                    'user_email': user.email,
+                    'company': user.company_name,
+                    'total_requests': len(user_requests),
+                    'newspaper_breakdown': newspaper_breakdown
+                })
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "overview": {
+                    "total_users": total_users,
+                    "total_requests": total_requests, 
+                    "total_responses": total_responses,
+                    "total_transcripts": total_transcripts
+                },
+                "outlet_stats": [{"name": name, "count": count} for name, count in outlet_stats],
+                "category_stats": [{"name": category, "count": count} for category, count in category_stats],
+                "recent_activity": recent_activity,
+                "user_newspaper_stats": user_newspaper_stats
+            }
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Admin stats error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading stats: {str(e)}"
+        }), 500
+
+@app.route('/api/admin/newspapers', methods=['GET'])
+@require_admin
+def admin_get_newspaper_analytics():
+    """Get detailed newspaper/outlet analytics - Admin only"""
+    try:
+        # Get all outlets with usage data
+        outlets_with_usage = db.session.query(
+            NewsOutlet.id,
+            NewsOutlet.name,
+            db.func.count(Request.id).label('total_usage'),
+            db.func.count(db.distinct(Request.user_id)).label('unique_users')
+        ).outerjoin(Request).group_by(NewsOutlet.id, NewsOutlet.name).all()
+        
+        newspaper_analytics = []
+        for outlet_id, outlet_name, total_usage, unique_users in outlets_with_usage:
+            # Get recent requests for this outlet
+            recent_requests = Request.query.filter_by(news_outlet_id=outlet_id)\
+                                         .options(db.joinedload(Request.user))\
+                                         .order_by(Request.created_at.desc())\
+                                         .limit(5).all()
+            
+            recent_activity = []
+            for req in recent_requests:
+                recent_activity.append({
+                    'id': req.id,
+                    'title': req.title,
+                    'user_name': req.user.full_name if req.user else 'Unknown',
+                    'company': req.company_name,
+                    'date': req.created_at.isoformat() if req.created_at else None
+                })
+            
+            newspaper_analytics.append({
+                'outlet_id': outlet_id,
+                'outlet_name': outlet_name,
+                'total_usage': total_usage or 0,
+                'unique_users': unique_users or 0,
+                'recent_activity': recent_activity
+            })
+        
+        # Sort by usage
+        newspaper_analytics.sort(key=lambda x: x['total_usage'], reverse=True)
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "newspaper_analytics": newspaper_analytics,
+                "total_outlets": len(newspaper_analytics)
+            }
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Admin newspaper analytics error: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading newspaper analytics: {str(e)}"
+        }), 500
+
 if __name__ == '__main__':
     print("🚀 Starting Press Release Generation Platform")
     print(f"🤖 Agent Address: {AGENT_ADDRESS}")
