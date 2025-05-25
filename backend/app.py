@@ -1791,6 +1791,8 @@ def clean_ai_content(content: str) -> str:
     if not content:
         return content
     
+    print(f"🧹 Original content preview: {content[:200]}...")
+    
     # Remove \boxed{markdown wrapper if present
     if content.startswith('\\boxed{markdown'):
         content = content[len('\\boxed{markdown'):]
@@ -1807,6 +1809,18 @@ def clean_ai_content(content: str) -> str:
     
     # Remove any leading/trailing whitespace or newlines
     content = content.strip()
+    
+    # Remove markdown code block wrappers if present
+    if content.startswith('```markdown'):
+        content = content[len('```markdown'):].strip()
+        # Remove trailing ``` if present
+        if content.endswith('```'):
+            content = content[:-3].strip()
+    elif content.startswith('```'):
+        content = content[3:].strip()
+        # Remove trailing ``` if present
+        if content.endswith('```'):
+            content = content[:-3].strip()
     
     # Handle common Unicode escape sequences
     unicode_replacements = {
@@ -1838,6 +1852,11 @@ def clean_ai_content(content: str) -> str:
     
     # Clean up any remaining backslash-n sequences that should be newlines
     content = content.replace('\\n', '\n')
+    
+    # Final cleanup - remove any extra whitespace
+    content = content.strip()
+    
+    print(f"✨ Cleaned content preview: {content[:200]}...")
     
     return content
 
