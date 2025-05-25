@@ -1,19 +1,13 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-<<<<<<< Updated upstream
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
 
 export default function RequestPage() {
   const router = useRouter();
-=======
-import { useSearchParams } from 'next/navigation';
-import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
-
-export default function RequestPage() {
   const searchParams = useSearchParams();
->>>>>>> Stashed changes
+
   const [outlets, setOutlets] = useState<Record<string, any>>({});
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);

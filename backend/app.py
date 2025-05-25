@@ -942,6 +942,113 @@ def verify_auth():
             "message": "Token verification failed"
         }), 401
 
+@app.route('/api/transcripts', methods=['POST'])
+def save_transcript():
+    """Save a new speech transcript"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+        
+        if not text:
+            return jsonify({
+                "success": False,
+                "message": "Transcript text is required"
+            }), 400
+        
+        # Create new transcript
+        transcript = Transcript(text=text)
+        db.session.add(transcript)
+        db.session.commit()
+        
+        print(f"💾 Saved transcript {transcript.id}: {len(text)} characters")
+        
+        return jsonify({
+            "success": True,
+            "data": transcript.to_dict(),
+            "message": "Transcript saved successfully"
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Database error saving transcript: {e}")
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": f"Error saving transcript: {str(e)}"
+        }), 500
+
+@app.route('/api/transcripts', methods=['GET'])
+def get_transcripts():
+    """Get all saved transcripts"""
+    try:
+        transcripts = Transcript.query.order_by(Transcript.created_at.desc()).all()
+        transcript_data = [transcript.to_dict() for transcript in transcripts]
+        
+        return jsonify({
+            "success": True,
+            "data": transcript_data,
+            "count": len(transcript_data)
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Database error loading transcripts: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading transcripts: {str(e)}"
+        })
+
+@app.route('/api/transcripts/<int:transcript_id>', methods=['GET'])
+def get_transcript(transcript_id):
+    """Get a specific transcript"""
+    try:
+        transcript = Transcript.query.get(transcript_id)
+        if not transcript:
+            return jsonify({
+                "success": False,
+                "message": "Transcript not found"
+            }), 404
+        
+        return jsonify({
+            "success": True,
+            "data": transcript.to_dict()
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Database error loading transcript {transcript_id}: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Error loading transcript: {str(e)}"
+        })
+
+@app.route('/api/transcripts/<int:transcript_id>', methods=['DELETE'])
+def delete_transcript(transcript_id):
+    """Delete a specific transcript"""
+    try:
+        transcript = Transcript.query.get(transcript_id)
+        if not transcript:
+            return jsonify({
+                "success": False,
+                "message": "Transcript not found"
+            }), 404
+        
+        # Delete the transcript
+        db.session.delete(transcript)
+        db.session.commit()
+        
+        print(f"🗑️ Deleted transcript {transcript_id}")
+        
+        return jsonify({
+            "success": True,
+            "message": "Transcript deleted successfully"
+        })
+        
+    except Exception as e:
+        print(f"⚠️ Database error deleting transcript {transcript_id}: {e}")
+        db.session.rollback()
+        return jsonify({
+            "success": False,
+            "message": f"Error deleting transcript: {str(e)}"
+        }), 500
+
 if __name__ == '__main__':
     print("🚀 Starting Press Release Generation Platform")
     print(f"🤖 Agent Address: {AGENT_ADDRESS}")
