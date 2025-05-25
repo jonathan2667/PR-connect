@@ -39,11 +39,12 @@ const MarkdownContent: React.FC<MarkdownContentProps> = ({ content, className = 
           ),
           
           // Style code blocks
-          code: ({ node, inline, ...props }) => (
-            inline ? 
+          code: ({ node, ...props }: any) => {
+            const isInline = !props.className || !props.className.includes('language-');
+            return isInline ? 
               <code className="bg-gray-100 rounded px-1 py-0.5 font-mono text-sm" {...props} /> :
               <code className="block bg-gray-100 rounded p-4 my-4 font-mono text-sm overflow-x-auto" {...props} />
-          ),
+          },
           
           // Style horizontal rules
           hr: ({ node, ...props }) => <hr className="my-6 border-gray-300" {...props} />,
