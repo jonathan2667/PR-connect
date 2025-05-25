@@ -27,10 +27,90 @@ const extractContentFromJSON = (rawContent: string): string => {
       return rawContent;
     }
     
+    // HARDCODED FIX: Extract content between "content": and "tone": 
+    if (rawContent.includes('"content":') && rawContent.includes('"tone":')) {
+      // Find the start of content
+      const contentStart = rawContent.indexOf('"content":');
+      if (contentStart !== -1) {
+        // Find the actual start of the content value (after the colon and quote)
+        const contentValueStart = rawContent.indexOf('"', contentStart + 10) + 1;
+        
+        // Find the end of content (before "tone":)
+        const toneStart = rawContent.indexOf('"tone":');
+        if (toneStart !== -1 && contentValueStart !== -1) {
+          // Extract the content, but we need to find the end quote before "tone":
+          let contentEnd = toneStart;
+          
+          // Work backwards from "tone": to find the closing quote of content
+          for (let i = toneStart - 1; i >= contentValueStart; i--) {
+            if (rawContent[i] === '"' && rawContent[i - 1] !== '\\') {
+              contentEnd = i;
+              break;
+            }
+          }
+          
+          const extractedContent = rawContent.substring(contentValueStart, contentEnd);
+          
+          // Clean up escaped quotes and other JSON escape characters
+          const cleanedContent = extractedContent
+            .replace(/\\"/g, '"')      // Unescape quotes
+            .replace(/\\n/g, '\n')     // Convert \n to actual newlines
+            .replace(/\\r/g, '\r')     // Convert \r to actual carriage returns
+            .replace(/\\\\/g, '\\')    // Unescape backslashes
+            .trim();
+          
+          // If we got meaningful content, return it
+          if (cleanedContent.length > 10) {
+            return cleanedContent;
+          }
+        }
+      }
+    }
+    
     // If it doesn't look like JSON, return as-is
     return rawContent;
   } catch (e) {
-    // If JSON parsing fails, return the original content
+    // If JSON parsing fails, try the hardcoded extraction
+    if (rawContent.includes('"content":') && rawContent.includes('"tone":')) {
+      // Find the start of content
+      const contentStart = rawContent.indexOf('"content":');
+      if (contentStart !== -1) {
+        // Find the actual start of the content value (after the colon and quote)
+        const contentValueStart = rawContent.indexOf('"', contentStart + 10) + 1;
+        
+        // Find the end of content (before "tone":)
+        const toneStart = rawContent.indexOf('"tone":');
+        if (toneStart !== -1 && contentValueStart !== -1) {
+          // Extract the content, but we need to find the end quote before "tone":
+          let contentEnd = toneStart;
+          
+          // Work backwards from "tone": to find the closing quote of content
+          for (let i = toneStart - 1; i >= contentValueStart; i--) {
+            if (rawContent[i] === '"' && rawContent[i - 1] !== '\\') {
+              contentEnd = i;
+              break;
+            }
+          }
+          
+          const extractedContent = rawContent.substring(contentValueStart, contentEnd);
+          
+          // Clean up escaped quotes and other JSON escape characters
+          const cleanedContent = extractedContent
+            .replace(/\\"/g, '"')      // Unescape quotes
+            .replace(/\\n/g, '\n')     // Convert \n to actual newlines
+            .replace(/\\r/g, '\r')     // Convert \r to actual carriage returns
+            .replace(/\\\\/g, '\\')    // Unescape backslashes
+            .trim();
+          
+          // If we got meaningful content, return it
+          if (cleanedContent.length > 10) {
+            return cleanedContent;
+          }
+        }
+      }
+    }
+    
+    // If all else fails, return the original content
     return rawContent;
   }
 };
