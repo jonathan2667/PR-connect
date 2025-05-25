@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { api, PressReleaseRequest, PressReleaseResponse, GeneratedPressRelease } from '../../lib/api';
 
 export default function RequestPage() {
+  const router = useRouter();
   const [outlets, setOutlets] = useState<Record<string, any>>({});
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -829,29 +831,41 @@ export default function RequestPage() {
 
           {/* Submit Button */}
           <div className="pt-6">
-            <button
-              type="submit"
-              disabled={loading || formData.target_outlets.length === 0}
-              className="group relative w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white py-4 px-8 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none hover:scale-105 disabled:hover:scale-100"
-            >
-              <div className="flex items-center justify-center gap-3">
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                    <span>Generating Your Press Releases...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🚀</span>
-                    <span>Generate Press Releases</span>
-                    <span>✨</span>
-                  </>
+            <div className="flex gap-4">
+              <button
+                type="button"
+                onClick={() => router.push('/dashboard')}
+                className="flex-1 bg-gray-500 hover:bg-gray-600 text-white py-4 px-8 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  <span>←</span>
+                  <span>Cancel</span>
+                </div>
+              </button>
+              <button
+                type="submit"
+                disabled={loading || formData.target_outlets.length === 0}
+                className="group relative flex-1 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white py-4 px-8 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none hover:scale-105 disabled:hover:scale-100"
+              >
+                <div className="flex items-center justify-center gap-3">
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                      <span>Generating Your Press Releases...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>🚀</span>
+                      <span>Generate Press Releases</span>
+                      <span>✨</span>
+                    </>
+                  )}
+                </div>
+                {!loading && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"></div>
                 )}
-              </div>
-              {!loading && (
-                <div className="absolute inset-0 bg-gradient-to-r from-indigo-700 via-purple-700 to-pink-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"></div>
-              )}
-            </button>
+              </button>
+            </div>
           </div>
         </form>
       </div>
