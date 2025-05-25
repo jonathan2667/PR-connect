@@ -335,121 +335,217 @@ def generate_press_release():
         success, response = run_async(generate_press_releases(pr_request))
         
         print(f"📥 Received from agent - Success: {success}")
+        print(f"📥 Agent response: {response}")
         
-        if success:
-            print(f"✅ Message delivered to agent successfully")
-            
-            # Generate content locally using the same logic as the agent
-            sample_releases = []
-            db_requests = []  # Store database request objects
-            
-            # Ensure target_outlets is not None and has data
-            target_outlets = pr_request.target_outlets or ['General']
-            if not target_outlets:
-                target_outlets = ['General']
-            
-            for outlet_name in target_outlets:
-                # Find or create outlet in database
+        if success and response and AGENT_ADDRESS:
+            # Try to parse agent response
+            try:
+                # Check if response is already a PressReleaseResponse object
+                if hasattr(response, 'generated_releases'):
+                    agent_response = response
+                # Or if it's a dictionary that can be converted
+                elif isinstance(response, dict) and 'generated_releases' in response:
+                    agent_response = response
+                else:
+                    print(f"⚠️ Unexpected agent response format: {type(response)}")
+                    raise ValueError("Invalid agent response format")
+                
+                print(f"✅ Successfully parsed agent response with {len(agent_response.generated_releases if hasattr(agent_response, 'generated_releases') else agent_response['generated_releases'])} releases")
+                
+                # Store agent-generated content in database
+                db_requests = []
+                sample_releases = []
+                
+                generated_releases = agent_response.generated_releases if hasattr(agent_response, 'generated_releases') else agent_response['generated_releases']
+                
+                for release in generated_releases:
+                    outlet_name = release.outlet if hasattr(release, 'outlet') else release['outlet']
+                    content = release.content if hasattr(release, 'content') else release['content']
+                    tone = release.tone if hasattr(release, 'tone') else release['tone']
+                    word_count = release.word_count if hasattr(release, 'word_count') else release['word_count']
+                    
+                    # Find or create outlet in database
+                    try:
+                        outlet = NewsOutlet.query.filter_by(name=outlet_name).first()
+                        if not outlet:
+                            outlet = NewsOutlet(name=outlet_name)
+                            db.session.add(outlet)
+                            db.session.flush()
+                        
+                        # Create request record in database
+                        db_request = Request(
+                            title=pr_request.title or 'Untitled Press Release',
+                            body=pr_request.body or 'No content provided',
+                            news_outlet_id=outlet.id,
+                            user_id=user_id,
+                            company_name=pr_request.company_name or 'Unknown Company',
+                            category=pr_request.category or 'Company Milestone',
+                            contact_info=pr_request.contact_info or '',
+                            additional_notes=pr_request.additional_notes or ''
+                        )
+                        db.session.add(db_request)
+                        db.session.flush()
+                        db_requests.append(db_request)
+                        
+                        # Store agent response in database
+                        db_response = Response(
+                            body=content,
+                            request_id=db_request.id,
+                            tone=tone,
+                            word_count=word_count
+                        )
+                        db.session.add(db_response)
+                        
+                    except Exception as db_error:
+                        print(f"⚠️ Database error for outlet {outlet_name}: {db_error}")
+                        # Continue without database storage for this outlet
+                        pass
+                    
+                    sample_releases.append({
+                        "outlet": outlet_name,
+                        "content": content,
+                        "tone": tone,
+                        "word_count": word_count
+                    })
+                
+                # Commit database changes
                 try:
-                    outlet = NewsOutlet.query.filter_by(name=outlet_name).first()
-                    if not outlet:
-                        outlet = NewsOutlet(name=outlet_name)
-                        db.session.add(outlet)
-                        db.session.flush()  # Get the ID
-                    
-                    # Create request record in database with user association
-                    db_request = Request(
-                        title=pr_request.title or 'Untitled Press Release',
-                        body=pr_request.body or 'No content provided',
-                        news_outlet_id=outlet.id,
-                        user_id=user_id,  # Associate with current user
-                        company_name=pr_request.company_name or 'Unknown Company',
-                        category=pr_request.category or 'Company Milestone',
-                        contact_info=pr_request.contact_info or '',
-                        additional_notes=pr_request.additional_notes or ''
-                    )
-                    db.session.add(db_request)
-                    db.session.flush()  # Get the ID
-                    db_requests.append(db_request)
-                    
+                    db.session.commit()
+                    print(f"💾 Stored {len(db_requests)} requests and {len(sample_releases)} agent responses in database")
                 except Exception as db_error:
-                    print(f"⚠️ Database error for outlet {outlet_name}: {db_error}")
-                    # Continue without database storage for this outlet
-                    pass
+                    print(f"⚠️ Database commit error: {db_error}")
+                    db.session.rollback()
                 
-                # Generate content based on outlet style (same as agent logic)
-                try:
-                    content = generate_content_for_outlet(pr_request, outlet_name)
-                    if not content:
-                        content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
-                except Exception as content_error:
-                    print(f"⚠️ Content generation error for {outlet_name}: {content_error}")
-                    content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
-                
-                tone_map = {
-                    "TechCrunch": "Direct, tech-focused, startup-friendly",
-                    "The Verge": "Consumer-focused, accessible tech coverage", 
-                    "Forbes": "Business-focused, executive perspective",
-                    "General": "Balanced, broad appeal"
+                # Return agent-generated content
+                response_data = {
+                    "request_id": agent_response.request_id if hasattr(agent_response, 'request_id') else agent_response.get('request_id', f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}"),
+                    "company_name": pr_request.company_name,
+                    "category": pr_request.category,
+                    "generated_releases": sample_releases,
+                    "timestamp": agent_response.timestamp if hasattr(agent_response, 'timestamp') else agent_response.get('timestamp', datetime.now().isoformat()),
+                    "status": "completed"
                 }
                 
-                tone = tone_map.get(outlet_name, "Balanced, broad appeal")
-                word_count = len(content.split()) if content else 0
+                print(f"✅ Using agent-generated content with {len(sample_releases)} press releases")
                 
-                # Store response in database
-                try:
-                    if db_requests:  # Only if we have a database request
-                        db_request = next((req for req in db_requests if req.news_outlet.name == outlet_name), None)
-                        if db_request:
-                            db_response = Response(
-                                body=content,
-                                request_id=db_request.id,
-                                tone=tone,
-                                word_count=word_count
-                            )
-                            db.session.add(db_response)
-                except Exception as db_error:
-                    print(f"⚠️ Database error storing response for {outlet_name}: {db_error}")
-                    # Continue without database storage
-                    pass
-                
-                sample_releases.append({
-                    "outlet": outlet_name,
-                    "content": content,
-                    "tone": tone,
-                    "word_count": word_count
+                return jsonify({
+                    "success": True,
+                    "data": response_data,
+                    "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully via AI agent"
                 })
-            
-            # Commit all database changes
+                
+            except Exception as parse_error:
+                print(f"⚠️ Failed to parse agent response: {parse_error}")
+                print(f"⚠️ Falling back to local generation")
+                # Fall through to local generation
+        
+        # Fallback to local generation if agent fails or is not configured
+        print(f"⚠️ Using local generation (Agent available: {bool(AGENT_ADDRESS)}, Success: {success})")
+        
+        # Generate content locally using the same logic as the agent
+        sample_releases = []
+        db_requests = []  # Store database request objects
+        
+        # Ensure target_outlets is not None and has data
+        target_outlets = pr_request.target_outlets or ['General']
+        if not target_outlets:
+            target_outlets = ['General']
+        
+        for outlet_name in target_outlets:
+            # Find or create outlet in database
             try:
-                db.session.commit()
-                print(f"💾 Stored {len(db_requests)} requests and {len(sample_releases)} responses in database")
+                outlet = NewsOutlet.query.filter_by(name=outlet_name).first()
+                if not outlet:
+                    outlet = NewsOutlet(name=outlet_name)
+                    db.session.add(outlet)
+                    db.session.flush()  # Get the ID
+                
+                # Create request record in database with user association
+                db_request = Request(
+                    title=pr_request.title or 'Untitled Press Release',
+                    body=pr_request.body or 'No content provided',
+                    news_outlet_id=outlet.id,
+                    user_id=user_id,  # Associate with current user
+                    company_name=pr_request.company_name or 'Unknown Company',
+                    category=pr_request.category or 'Company Milestone',
+                    contact_info=pr_request.contact_info or '',
+                    additional_notes=pr_request.additional_notes or ''
+                )
+                db.session.add(db_request)
+                db.session.flush()  # Get the ID
+                db_requests.append(db_request)
+                
             except Exception as db_error:
-                print(f"⚠️ Database commit error: {db_error}")
-                db.session.rollback()
+                print(f"⚠️ Database error for outlet {outlet_name}: {db_error}")
+                # Continue without database storage for this outlet
+                pass
             
-            response_data = {
-                "request_id": f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-                "company_name": pr_request.company_name,
-                "category": pr_request.category,
-                "generated_releases": sample_releases,
-                "timestamp": datetime.now().isoformat(),
-                "status": "completed"
+            # Generate content based on outlet style (same as agent logic)
+            try:
+                content = generate_content_for_outlet(pr_request, outlet_name)
+                if not content:
+                    content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
+            except Exception as content_error:
+                print(f"⚠️ Content generation error for {outlet_name}: {content_error}")
+                content = f"Press release content for {pr_request.company_name or 'Company'} - {pr_request.category or 'Announcement'}"
+            
+            tone_map = {
+                "TechCrunch": "Direct, tech-focused, startup-friendly",
+                "The Verge": "Consumer-focused, accessible tech coverage", 
+                "Forbes": "Business-focused, executive perspective",
+                "General": "Balanced, broad appeal"
             }
-            print(f"✅ Generated {len(sample_releases)} press releases successfully")
             
-            return jsonify({
-                "success": True,
-                "data": response_data,
-                "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully"
-            })
-        else:
-            print(f"❌ Generation failed: {response}")
-            return jsonify({
-                "success": False,
-                "message": f"Generation failed: {response}"
-            })
+            tone = tone_map.get(outlet_name, "Balanced, broad appeal")
+            word_count = len(content.split()) if content else 0
             
+            # Store response in database
+            try:
+                if db_requests:  # Only if we have a database request
+                    db_request = next((req for req in db_requests if req.news_outlet.name == outlet_name), None)
+                    if db_request:
+                        db_response = Response(
+                            body=content,
+                            request_id=db_request.id,
+                            tone=tone,
+                            word_count=word_count
+                        )
+                        db.session.add(db_response)
+            except Exception as db_error:
+                print(f"⚠️ Database error storing response for {outlet_name}: {db_error}")
+                # Continue without database storage
+                pass
+            
+            sample_releases.append({
+                "outlet": outlet_name,
+                "content": content,
+                "tone": tone,
+                "word_count": word_count
+            })
+        
+        # Commit all database changes
+        try:
+            db.session.commit()
+            print(f"💾 Stored {len(db_requests)} requests and {len(sample_releases)} responses in database")
+        except Exception as db_error:
+            print(f"⚠️ Database commit error: {db_error}")
+            db.session.rollback()
+        
+        response_data = {
+            "request_id": f"PR_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "company_name": pr_request.company_name,
+            "category": pr_request.category,
+            "generated_releases": sample_releases,
+            "timestamp": datetime.now().isoformat(),
+            "status": "completed"
+        }
+        print(f"✅ Generated {len(sample_releases)} press releases successfully")
+        
+        return jsonify({
+            "success": True,
+            "data": response_data,
+            "message": f"Generated {len(response_data.get('generated_releases', []))} press releases successfully"
+        })
     except Exception as e:
         print(f"💥 Exception in generate_press_release: {str(e)}")
         import traceback

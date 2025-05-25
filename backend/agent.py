@@ -81,138 +81,185 @@ def generate_press_release_content(request: PressReleaseRequest, outlet: str) ->
 
 def generate_techcrunch_style(request: PressReleaseRequest) -> str:
     """Generate TechCrunch-style press release"""
+    
+    # Transform the body content rather than just echoing it
+    if "launch" in request.body.lower():
+        announcement = f"unveiled its latest innovation with the {request.title.lower()}"
+    elif "funding" in request.body.lower() or "investment" in request.body.lower():
+        announcement = f"secured significant funding to accelerate development of {request.title.lower()}"
+    elif "partnership" in request.body.lower():
+        announcement = f"formed a strategic partnership to enhance {request.title.lower()}"
+    else:
+        announcement = f"made a major announcement regarding {request.title.lower()}"
+    
     return f"""**{request.title}**
 
-{request.company_name} today announced {request.body.lower()}
+{request.company_name} today {announcement}, marking a significant milestone in the company's evolution within the tech ecosystem.
 
 **Key Highlights:**
-- Innovation-driven approach to market disruption
-- Technology-first solution addressing key industry challenges  
-- Positioned for rapid scaling and market adoption
+• Revolutionary approach combining cutting-edge technology with market-driven solutions
+• Scalable architecture designed for rapid user adoption and growth
+• Positioned to disrupt traditional industry practices and create new market opportunities
+• Built with developer-first mindset and enterprise-grade security
 
-**About the {request.category}:**
-This development represents a significant milestone in {request.company_name}'s growth trajectory, demonstrating the company's commitment to pushing technological boundaries and delivering value to users.
+**Technical Innovation:**
+This {request.category.lower()} represents {request.company_name}'s commitment to pushing the boundaries of what's possible in technology. The solution addresses critical pain points in the market while maintaining the flexibility and performance that modern businesses demand.
 
 **Market Impact:**
-The announcement is expected to strengthen {request.company_name}'s position in the competitive landscape, potentially influencing industry standards and user expectations.
+Industry analysts expect this development to significantly impact how companies approach their technology stack, potentially setting new standards for innovation and user experience in the sector.
+
+**What Makes This Different:**
+Unlike existing solutions, {request.company_name}'s approach focuses on seamless integration, intuitive user experience, and scalable performance that grows with business needs.
 
 **Additional Information:**
-{request.additional_notes if request.additional_notes else 'Further details will be available through official company channels.'}
+{request.additional_notes if request.additional_notes else 'Technical documentation and developer resources will be made available through the company portal.'}
 
-**Contact:**
-{request.contact_info if request.contact_info else 'Media inquiries welcome through standard channels.'}
+**Media Contact:**
+{request.contact_info if request.contact_info else f'Press inquiries: press@{request.company_name.lower().replace(" ", "")}.com'}
 
-*This release was optimized for TechCrunch's tech-focused, startup-friendly editorial style.*"""
+*This release reflects TechCrunch's focus on innovation, disruption, and the technical aspects that matter to the startup ecosystem.*"""
 
 def generate_theverge_style(request: PressReleaseRequest) -> str:
     """Generate The Verge-style press release"""
+    
+    # Create more engaging, consumer-focused content
+    consumer_angle = ""
+    if "app" in request.body.lower() or "platform" in request.body.lower():
+        consumer_angle = "a new way for users to interact with technology"
+    elif "service" in request.body.lower():
+        consumer_angle = "an enhanced service experience"
+    elif "product" in request.body.lower():
+        consumer_angle = "a product that could change how we think about everyday technology"
+    else:
+        consumer_angle = "an innovation that bridges technology and human experience"
+    
     return f"""# {request.title}
 
-{request.company_name} is making waves with {request.body.lower()}
+{request.company_name} is introducing {consumer_angle}, and it's exactly the kind of forward-thinking approach we've come to expect from companies that understand where technology is heading.
 
-## What This Means for Users
+## What This Means for You
 
-This {request.category.lower()} represents more than just another corporate announcement — it's about how technology continues to reshape our daily experiences and interactions.
+This {request.category.lower()} isn't just another corporate announcement — it's about the evolving relationship between technology and daily life. When companies like {request.company_name} make moves like this, it signals broader shifts in how we'll interact with digital tools in the future.
 
-## The Consumer Angle
+## The User Experience Focus
 
-For everyday users, this development translates to:
-- Enhanced user experience and accessibility
-- More intuitive interaction with technology
-- Broader implications for digital lifestyle trends
+The real story here is user experience. {request.company_name} seems to understand that great technology isn't just about features — it's about creating seamless, intuitive experiences that actually improve how people work and live.
 
-## Company Perspective
+## Why This Matters Now
 
-"{request.body}" said representatives from {request.company_name}, emphasizing the consumer-first approach that drives their innovation strategy.
+In a landscape where users are increasingly demanding more from their technology, {request.company_name}'s approach represents a thoughtful response to real user needs. This {request.category.lower()} addresses the gap between what technology can do and what users actually want it to do.
 
-## Looking Forward
+## The Bigger Picture
 
-This announcement positions {request.company_name} at the intersection of technology and user experience, areas where The Verge's audience expects cutting-edge developments.
+This development positions {request.company_name} in an interesting space where technology meets practical application. It's the kind of strategic thinking that often leads to meaningful innovation rather than just incremental updates.
+
+## Looking Ahead
+
+As the technology landscape continues to evolve, announcements like this remind us that the companies succeeding aren't just building better technology — they're building better experiences.
 
 ## Additional Context
-{request.additional_notes if request.additional_notes else 'More details expected as the story develops.'}
+{request.additional_notes if request.additional_notes else "We'll be following this story as it develops and tracking user response to the new offerings."}
 
-**Media Contact:** {request.contact_info if request.contact_info else 'Available upon request'}
+**Press Contact:** {request.contact_info if request.contact_info else "Media inquiries welcomed via official channels"}
 
-*Styled for The Verge's consumer-tech focus and engaging narrative approach.*"""
+*Written in The Verge's signature style: consumer-focused, forward-looking, and emphasizing the human side of technology.*"""
 
 def generate_forbes_style(request: PressReleaseRequest) -> str:
     """Generate Forbes-style press release"""
+    
+    # Create business-focused, strategic content
+    strategic_context = ""
+    if "funding" in request.body.lower():
+        strategic_context = "capital allocation strategy"
+    elif "launch" in request.body.lower():
+        strategic_context = "market expansion initiative"
+    elif "partnership" in request.body.lower():
+        strategic_context = "strategic alliance formation"
+    else:
+        strategic_context = "business development strategy"
+    
     return f"""**{request.title}**
-*Strategic {request.category} Positions Company for Market Leadership*
+*{request.company_name} Advances Market Position Through Strategic {request.category}*
 
 **Executive Summary**
 
-{request.company_name} today announced {request.body}, a strategic move that underscores the company's commitment to market expansion and shareholder value creation.
+{request.company_name} today unveiled its latest {strategic_context}, a calculated move that underscores the company's commitment to sustainable growth and market leadership in an increasingly competitive landscape.
 
-**Business Impact Analysis**
+**Strategic Business Impact**
 
-This {request.category.lower()} represents a calculated investment in:
-- Market position strengthening
-- Operational efficiency improvements  
-- Long-term value creation for stakeholders
-- Competitive advantage development
+This {request.category.lower()} represents a sophisticated approach to:
+• Market position consolidation and expansion opportunities
+• Operational efficiency optimization across key business verticals
+• Long-term shareholder value creation through strategic asset development
+• Competitive differentiation in a rapidly evolving marketplace
 
-**Market Dynamics**
+**Market Analysis**
 
-The timing of this announcement reflects {request.company_name}'s strategic response to evolving market conditions and positions the company to capitalize on emerging opportunities in their sector.
+The timing of this announcement reflects {request.company_name}'s strategic intelligence in recognizing market inflection points. Industry experts suggest this {request.category.lower()} positions the company to capitalize on emerging market opportunities while mitigating sector-specific risks.
 
-**Financial Implications**
+**Financial and Operational Implications**
 
-Industry analysts expect this {request.category.lower()} to contribute positively to the company's growth trajectory, potentially impacting:
-- Revenue generation capabilities
-- Market share expansion
-- Operational scalability
-- Investment attractiveness
+From an investment perspective, this development demonstrates:
+• Strong management execution of previously outlined strategic objectives
+• Prudent resource allocation supporting both growth and profitability metrics
+• Enhanced market positioning that should drive sustainable revenue growth
+• Operational scalability improvements supporting long-term expansion goals
 
-**Leadership Commentary**
+**Leadership Perspective**
 
-The {request.category.lower()} aligns with {request.company_name}'s broader strategic vision and demonstrates executive leadership's commitment to sustainable growth and market innovation.
+The {request.category.lower()} aligns with {request.company_name}'s articulated vision for sustainable growth and market innovation. This strategic initiative reflects the kind of forward-thinking leadership that institutional investors value in today's dynamic business environment.
 
-**Additional Strategic Context**
-{request.additional_notes if request.additional_notes else 'Further strategic details to be disclosed in upcoming investor communications.'}
+**Competitive Landscape Impact**
 
-**Investor Relations Contact:** {request.contact_info if request.contact_info else 'Available through official investor relations channels'}
+By executing this {request.category.lower()}, {request.company_name} strengthens its competitive moat while creating new avenues for market expansion. The move signals confidence in the company's ability to execute complex strategic initiatives while maintaining operational excellence.
 
-*Formatted for Forbes' business-executive audience with focus on market impact and financial implications.*"""
+**Investment Considerations**
+{request.additional_notes if request.additional_notes else 'Detailed financial implications and strategic metrics will be discussed in upcoming investor communications and quarterly reporting.'}
+
+**Investor Relations:** {request.contact_info if request.contact_info else f'investor.relations@{request.company_name.lower().replace(" ", "")}.com'}
+
+*Structured for Forbes' executive readership with emphasis on strategic thinking, market impact, and investment implications.*"""
 
 def generate_general_style(request: PressReleaseRequest) -> str:
     """Generate general audience press release"""
+    
+    # Create clear, accessible content for broad distribution
     return f"""FOR IMMEDIATE RELEASE
 
 **{request.title}**
 
-{request.company_name} Announces {request.category}
+{request.company_name} Announces Significant {request.category}
 
-**[City, Date]** – {request.company_name} today announced {request.body}
+**[City, State] – [Date]** – {request.company_name}, a leading organization in its field, today announced a major {request.category.lower()} that represents an important step forward in the company's ongoing mission to deliver innovative solutions and exceptional value.
 
-**About This {request.category}:**
+**About This Development:**
 
-This development represents an important milestone for {request.company_name} and demonstrates the organization's ongoing commitment to innovation and growth.
+This {request.category.lower()} demonstrates {request.company_name}'s continued commitment to innovation, growth, and excellence in serving its stakeholders. The initiative builds on the company's established track record of successful market execution and strategic development.
 
-**Key Details:**
+**Key Highlights:**
 
-- **What:** {request.category} by {request.company_name}
-- **Impact:** Enhanced capabilities and market position
-- **Timeline:** Effective immediately
-- **Scope:** Company-wide initiative
+• **Innovation Focus:** Continued investment in cutting-edge solutions and market-leading capabilities
+• **Market Impact:** Strengthened position to serve evolving customer needs and market demands  
+• **Growth Strategy:** Strategic advancement supporting both immediate and long-term business objectives
+• **Stakeholder Value:** Enhanced capabilities benefiting customers, partners, and the broader community
 
-**Company Background:**
+**Company Leadership Commentary:**
 
-{request.company_name} continues to build on its foundation of innovation and customer service, with this {request.category.lower()} marking another step in the company's strategic evolution.
-
-**Additional Information:**
-{request.additional_notes if request.additional_notes else 'Additional details available upon request.'}
-
-**Media Contact:**
-{request.contact_info if request.contact_info else 'Media inquiries welcome'}
+"{request.company_name} is pleased to announce this {request.category.lower()}, which represents our ongoing commitment to innovation and excellence," said company representatives. "This development reflects our strategic vision and our dedication to delivering meaningful value to all our stakeholders."
 
 **About {request.company_name}:**
-[Standard company boilerplate would appear here]
+
+{request.company_name} continues to build on its foundation of innovation, quality, and customer service. The company remains focused on delivering solutions that meet evolving market needs while maintaining the highest standards of excellence and integrity.
+
+**Additional Information:**
+{request.additional_notes if request.additional_notes else 'Additional details about this announcement are available through official company communications channels.'}
+
+**Media Contact:**
+{request.contact_info if request.contact_info else f'Press inquiries: press@{request.company_name.lower().replace(" ", "")}.com'}
 
 ###
 
-*This press release follows standard industry formatting for broad media distribution.*"""
+*This press release follows Associated Press style guidelines for broad media distribution and general audience accessibility.*"""
 
 @agent.on_event("startup")
 async def startup_message(ctx: Context):
