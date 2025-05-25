@@ -85,8 +85,8 @@ class PressReleaseResponse(Model):
     timestamp: str
     status: str
 
-# Configuration - Update with your agent address
-AGENT_ADDRESS = os.environ.get('AGENT_ADDRESS', 'agent1qf376ss48kl8cpsc8pwtmtauscplngqrf0ku437ma5jwcvqw20r2jf38pzp')
+# Agent Configuration - using the correct agent address from agentverse logs
+AGENT_ADDRESS = os.environ.get('AGENT_ADDRESS', 'agent1qgdyle9ucwtgutmyj9xwydlkkswvu9mgwhkaxfg3hkn3usu3wjceg2u2r05')
 
 # Available outlets and categories (fallback for when DB is not available)
 AVAILABLE_OUTLETS = {

@@ -10,8 +10,8 @@ import traceback
 async def test_agent_communication():
     """Test direct communication with the AgentVerse agent"""
     
-    # Use the AgentVerse agent address
-    AGENT_ADDRESS = "agent1qf376ss48kl8cpsc8pwtmtauscplngqrf0ku437ma5jwcvqw20r2jf38pzp"
+    # Configuration - Update with your agent address  
+    AGENT_ADDRESS = "agent1qgdyle9ucwtgutmyj9xwydlkkswvu9mgwhkaxfg3hkn3usu3wjceg2u2r05"
     
     # Create a simple test request
     test_request = PressReleaseRequest(
