@@ -86,6 +86,46 @@ OUTLET_STYLES = {
     }
 }
 
+def clean_press_release_content(content: str) -> str:
+    """Clean and format press release content from AI response"""
+    # Remove LaTeX formatting
+    content = content.replace('\\boxed{', '').replace('}', '')
+    
+    # Remove code block markers if present
+    if content.startswith('```'):
+        lines = content.split('\n')
+        # Find first content line after opening ```
+        start_idx = 1
+        for i, line in enumerate(lines[1:], 1):
+            if not line.strip().startswith('```') and line.strip():
+                start_idx = i
+                break
+        # Find last content line before closing ```
+        end_idx = len(lines)
+        for i in range(len(lines) - 1, -1, -1):
+            if not lines[i].strip().startswith('```') and lines[i].strip():
+                end_idx = i + 1
+                break
+        content = '\n'.join(lines[start_idx:end_idx])
+    
+    # Remove any remaining markdown code block indicators
+    content = content.replace('```markdown', '').replace('```', '')
+    
+    # Clean up excessive whitespace while preserving paragraph breaks
+    lines = content.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        cleaned_line = line.strip()
+        cleaned_lines.append(cleaned_line)
+    
+    # Join lines and clean up excessive line breaks
+    content = '\n'.join(cleaned_lines)
+    # Replace multiple consecutive empty lines with maximum 2
+    while '\n\n\n' in content:
+        content = content.replace('\n\n\n', '\n\n')
+    
+    return content.strip()
+
 async def generate_ai_press_release(request: PressReleaseRequest, outlet: str, ctx: Context) -> GeneratedPressRelease:
     """Generate press release using DeepSeek AI via OpenRouter with OpenAI client"""
     
@@ -159,8 +199,11 @@ Generate a professional press release in markdown format. Include proper heading
                 content_text = ai_response['choices'][0]['message']['content'].strip()
                 ctx.logger.info(f"🤖 Raw AI Response: {content_text[:300]}...")
                 
-                # Use the AI content directly - no need to parse JSON
-                content = content_text
+                # Clean the content
+                cleaned_content = clean_press_release_content(content_text)
+                
+                # Use the cleaned content directly - no need to parse JSON
+                content = cleaned_content
                 tone = outlet_info['tone']
                 
                 # Validate that we got meaningful content
