@@ -182,9 +182,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Floating Menu Button - Only visible on mobile */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="md:hidden fixed top-6 left-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
+        className="md:hidden fixed top-4 left-4 z-40 bg-gradient-to-r from-blue-600 to-purple-600 text-white p-2.5 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
       >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
@@ -192,9 +192,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Desktop Topbar - Modified for mobile */}
-        <header className="flex justify-between items-center px-4 md:px-8 py-4 md:py-6 border-b border-gray-200 bg-white">
+        <header className="flex justify-between items-center px-4 md:px-8 py-3 md:py-6 border-b border-gray-200 bg-white">
           {/* Mobile: Show current page title, Desktop: Show PRConnect */}
-          <h1 className="text-xl md:text-2xl font-bold text-blue-700">
+          <h1 className="text-lg md:text-2xl font-bold text-blue-700 ml-12 md:ml-0">
             <span className="md:hidden">{getCurrentPageTitle()}</span>
             <span className="hidden md:block">PRConnect</span>
           </h1>
@@ -218,13 +218,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           
           {/* Mobile: Show user company name only */}
           <div className="md:hidden">
-            <span className="text-sm font-medium text-gray-600">{userCompany}</span>
+            <span className="text-xs font-medium text-gray-600 truncate max-w-24">{userCompany}</span>
           </div>
         </header>
         
-        {/* Main Area - Adjusted padding for mobile */}
-        <main className="flex-1 p-4 md:p-8">
-          {children}
+        {/* Main Area - Adjusted padding for mobile with proper centering */}
+        <main className="flex-1 p-3 md:p-8 w-full overflow-x-hidden">
+          <div className="w-full max-w-full mx-auto">
+            {children}
+          </div>
         </main>
       </div>
     </div>

@@ -518,7 +518,19 @@ Instructions for AI: The following content contains ${selectedTranscriptData.len
 export default function TranscriptsPage() {
   return (
     <DashboardLayout>
-      <TranscriptsContent />
+      <div className="bg-gradient-to-br from-indigo-50 via-white to-purple-50 py-6 md:py-12 px-2 md:px-4">
+        <div className="max-w-full md:max-w-6xl mx-auto">
+          <div className="text-center mb-6 md:mb-12 animate-in slide-in-from-top duration-700">
+            <h1 className="text-2xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
+              📝 Transcripts
+            </h1>
+            <p className="text-base md:text-xl text-gray-600 max-w-full md:max-w-2xl mx-auto leading-relaxed px-2">
+              Manage your saved voice transcripts and use them to create press releases
+            </p>
+          </div>
+          <TranscriptsContent />
+        </div>
+      </div>
     </DashboardLayout>
   );
 } 
