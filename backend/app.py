@@ -402,6 +402,11 @@ def generate_press_release():
                 # Handle case where agent returns raw string content (new behavior)
                 elif isinstance(response, str):
                     print(f"✅ Received raw string response from agent: {len(response)} chars")
+                    
+                    # Clean up the AI-generated content
+                    cleaned_content = clean_ai_content(response)
+                    print(f"✨ Cleaned content: {len(cleaned_content)} chars (was {len(response)})")
+                    
                     # Create a structured response from the raw content
                     # Since we simplified the agent to return markdown directly, 
                     # we need to create releases for each requested outlet
@@ -409,9 +414,9 @@ def generate_press_release():
                     for outlet in pr_request.target_outlets:
                         generated_releases.append({
                             'outlet': outlet,
-                            'content': response,  # Use the raw agent response as content
+                            'content': cleaned_content,  # Use the cleaned agent response as content
                             'tone': AVAILABLE_OUTLETS.get(outlet, {}).get('description', 'Professional tone'),
-                            'word_count': len(response.split())
+                            'word_count': len(cleaned_content.split())
                         })
                     
                     agent_response = {
@@ -1780,6 +1785,54 @@ def get_debug_logs():
             "environment": os.environ.get('RENDER_SERVICE_NAME', 'local')
         }
     })
+
+def clean_ai_content(content: str) -> str:
+    """Clean up AI-generated content by removing LaTeX wrappers and fixing Unicode"""
+    if not content:
+        return content
+    
+    # Remove \boxed{markdown wrapper if present
+    if content.startswith('\\boxed{markdown'):
+        content = content[len('\\boxed{markdown'):]
+        # Remove trailing } if present
+        if content.endswith('}'):
+            content = content[:-1]
+    
+    # Remove any leading/trailing whitespace or newlines
+    content = content.strip()
+    
+    # Handle common Unicode escape sequences
+    unicode_replacements = {
+        '\\u2013': '–',  # en dash
+        '\\u2014': '—',  # em dash
+        '\\u201c': '"',  # left double quotation mark
+        '\\u201d': '"',  # right double quotation mark
+        '\\u2018': ''',  # left single quotation mark
+        '\\u2019': ''',  # right single quotation mark
+        '\\u0219': 'ș',  # Romanian s with comma below
+        '\\u021b': 'ț',  # Romanian t with comma below
+        '\\u0103': 'ă',  # Romanian a with breve
+        '\\u00ee': 'î',  # Romanian i with circumflex
+        '\\u00e2': 'â',  # Romanian a with circumflex
+    }
+    
+    for escape_seq, replacement in unicode_replacements.items():
+        content = content.replace(escape_seq, replacement)
+    
+    # Handle any remaining \uXXXX sequences by trying to decode them
+    import re
+    def replace_unicode_escape(match):
+        try:
+            return chr(int(match.group(1), 16))
+        except ValueError:
+            return match.group(0)  # Return original if can't decode
+    
+    content = re.sub(r'\\u([0-9a-fA-F]{4})', replace_unicode_escape, content)
+    
+    # Clean up any remaining backslash-n sequences that should be newlines
+    content = content.replace('\\n', '\n')
+    
+    return content
 
 if __name__ == '__main__':
     print("🚀 Starting Press Release Generation Platform")
