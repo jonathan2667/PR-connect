@@ -127,7 +127,7 @@ function RequestPageContent() {
       const SpeechRecognition = window.webkitSpeechRecognition || window.SpeechRecognition;
       setSpeechSupported(!!SpeechRecognition);
 
-      if (SpeechRecognition) {
+      if (SpeechRecognition && !recognitionRef.current) {
         const recognition = new SpeechRecognition();
         recognition.continuous = true;
         recognition.interimResults = true;
@@ -158,8 +158,9 @@ function RequestPageContent() {
           }
 
           // Update display: accumulated speech + current interim results
-          setSpeechText(() => {
-            return accumulatedSpeech + newFinalTranscript + (interimTranscript ? `[${interimTranscript}]` : '');
+          setSpeechText(prev => {
+            const currentAccumulated = accumulatedSpeech + newFinalTranscript;
+            return currentAccumulated + (interimTranscript ? `[${interimTranscript}]` : '');
           });
         };
 
@@ -188,9 +189,9 @@ function RequestPageContent() {
           
           if (event.error === 'network') {
             console.log('🌐 Network error, attempting to restart...');
-            if (isRecognitionActive) {
-              restartRecognition();
-            }
+            // Don't auto-restart on network errors to prevent loops
+            setIsListening(false);
+            setIsRecognitionActive(false);
             return;
           }
           
@@ -204,49 +205,56 @@ function RequestPageContent() {
           // Only show error for unexpected error types
           console.log('❌ Unexpected speech recognition error:', event.error);
           setError('Speech recognition error: ' + event.error);
+          setIsListening(false);
+          setIsRecognitionActive(false);
         };
 
         recognition.onend = () => {
           console.log('🔄 Speech recognition ended');
+          console.log('🔍 Current state - isRecognitionActive:', isRecognitionActive, 'isListening:', isListening);
           
-          // Only restart if we're still supposed to be listening
-          if (isRecognitionActive && isListening) {
-            console.log('⏰ Auto-restarting recognition...');
-            
-            // Clear any existing restart timeout
-            if (restartTimeout) {
-              clearTimeout(restartTimeout);
-            }
-            
-            // Restart after a short delay to avoid rapid cycling
-            const timeout = setTimeout(() => {
-              if (isRecognitionActive && isListening) {
-                try {
-                  recognition.start();
-                  console.log('✅ Recognition restarted');
-                } catch (error) {
-                  console.log('⚠️ Failed to restart recognition:', error);
-                }
+          // Only restart if we're still supposed to be listening and recognition is active
+          // Use a flag check instead of state to avoid stale closures
+          setTimeout(() => {
+            // Check current state values at the time of execution
+            if (recognitionRef.current && 
+                document.querySelector('[data-listening="true"]') && 
+                document.querySelector('[data-recognition-active="true"]')) {
+              console.log('⏰ Auto-restarting recognition...');
+              try {
+                recognitionRef.current.start();
+                console.log('✅ Recognition restarted');
+              } catch (error) {
+                console.log('⚠️ Failed to restart recognition:', error);
+                setIsListening(false);
+                setIsRecognitionActive(false);
               }
-            }, 100);
-            
-            setRestartTimeout(timeout);
-          } else {
-            console.log('⏹️ Recognition stopped - not restarting');
-            setIsListening(false);
-          }
+            } else {
+              console.log('⏹️ Recognition stopped - not restarting');
+              setIsListening(false);
+              setIsRecognitionActive(false);
+            }
+          }, 100);
         };
 
         recognitionRef.current = recognition;
       }
     }
-  }, [isRecognitionActive, isListening, restartTimeout]);
+  }, []); // Remove dependencies to prevent recreation
 
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
       if (restartTimeout) {
         clearTimeout(restartTimeout);
+      }
+      // Clean up recognition on unmount
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (error) {
+          console.log('Cleanup error:', error);
+        }
       }
     };
   }, [restartTimeout]);
@@ -371,8 +379,8 @@ function RequestPageContent() {
   const startListening = () => {
     if (recognitionRef.current && speechSupported) {
       console.log('🎯 Starting speech recognition...');
-      setIsListening(true);
-      setIsRecognitionActive(true);
+      
+      // Clear any existing state first
       setError(null);
       setSpeechText('');
       setAccumulatedSpeech('');
@@ -383,20 +391,30 @@ function RequestPageContent() {
         setRestartTimeout(null);
       }
       
+      // Set active states
+      setIsRecognitionActive(true);
+      setIsListening(true);
+      
       try {
         recognitionRef.current.start();
+        console.log('✅ Speech recognition started successfully');
       } catch (error) {
         console.error('Failed to start recognition:', error);
         setError('Failed to start speech recognition. Please try again.');
         setIsListening(false);
         setIsRecognitionActive(false);
       }
+    } else if (!speechSupported) {
+      setError('Speech recognition is not supported in your browser.');
     }
   };
 
   const stopListening = () => {
     console.log('⏹️ Stopping speech recognition...');
+    
+    // Immediately set states to prevent auto-restart
     setIsRecognitionActive(false);
+    setIsListening(false);
     
     // Clear any restart timeout
     if (restartTimeout) {
@@ -406,12 +424,18 @@ function RequestPageContent() {
     
     if (recognitionRef.current) {
       try {
-        recognitionRef.current.stop();
+        // Use abort for immediate stop and prevent restart
+        recognitionRef.current.abort();
+        console.log('✅ Speech recognition stopped successfully');
       } catch (error) {
         console.log('Error stopping recognition:', error);
+        try {
+          // Fallback to stop if abort fails
+          recognitionRef.current.stop();
+        } catch (stopError) {
+          console.log('Error with fallback stop:', stopError);
+        }
       }
-      
-      setIsListening(false);
       
       // Process accumulated speech after stopping
       setTimeout(() => {
@@ -657,6 +681,8 @@ function RequestPageContent() {
                       <button
                         type="button"
                         onClick={isListening ? stopListening : startListening}
+                        data-listening={isListening}
+                        data-recognition-active={isRecognitionActive}
                         className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl font-bold transition-all duration-300 transform hover:scale-105 ${isListening
                           ? 'bg-red-500 text-white animate-pulse shadow-lg shadow-red-500/50'
                           : 'bg-gradient-to-r from-purple-500 to-pink-600 text-white hover:shadow-lg'
@@ -665,31 +691,33 @@ function RequestPageContent() {
                         {isListening ? '⏹️' : '🎤'}
                       </button>
                       
-                      {/* Status indicator */}
-                      <div className="mt-4 flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                          isListening 
-                            ? 'bg-green-500 animate-pulse' 
-                            : 'bg-gray-300'
-                        }`}></div>
-                        <span className={`text-sm font-medium transition-colors duration-300 ${
-                          isListening ? 'text-green-600' : 'text-gray-500'
+                      {/* Button label */}
+                      <div className="mt-2">
+                        <p className={`text-sm font-bold transition-colors duration-300 ${
+                          isListening ? 'text-red-600' : 'text-purple-600'
                         }`}>
-                          {isListening ? 'Actively Listening' : 'Ready to Listen'}
-                        </span>
+                          {isListening ? 'CLICK TO STOP' : 'CLICK TO START'}
+                        </p>
                       </div>
                     </div>
                     
                     <div className="space-y-2">
                       <p className="text-lg font-semibold text-gray-700">
-                        {isListening ? 'Speak naturally - pauses are okay!' : 'Click the microphone to start'}
+                        {isListening ? 'Speaking... Click the red button to STOP' : 'Click the microphone to start'}
                       </p>
                       <p className="text-sm text-gray-600">
                         {isListening 
-                          ? 'Your speech will continue to be captured even during short pauses'
+                          ? '🔴 Recording in progress - Click the STOP button when you are finished speaking'
                           : 'Describe your press release including company name, announcement details, and category'
                         }
                       </p>
+                      {isListening && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-2">
+                          <p className="text-sm text-red-800 font-medium text-center">
+                            ⏹️ Click the red STOP button above to finish recording
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 

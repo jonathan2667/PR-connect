@@ -1798,6 +1798,13 @@ def clean_ai_content(content: str) -> str:
         if content.endswith('}'):
             content = content[:-1]
     
+    # Remove \boxed{ wrapper (without markdown) if present
+    elif content.startswith('\\boxed{'):
+        content = content[len('\\boxed{'):]
+        # Remove trailing } if present
+        if content.endswith('}'):
+            content = content[:-1]
+    
     # Remove any leading/trailing whitespace or newlines
     content = content.strip()
     
